@@ -54,9 +54,7 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
                 Q{q.label} · {q.kind} · {q.marks ?? s.marksCorrect} marks
                 {q.figure && ` · diagram on page ${q.figure.page}`}
               </p>
-              <div className="flex flex-col gap-2">
-                <MathText>{q.stem}</MathText>
-              </div>
+              <MathText>{q.stem}</MathText>
               {q.options.length > 0 && (
                 <ol className="mt-2 flex flex-col gap-1 text-sm">
                   {q.options.map((o) => (

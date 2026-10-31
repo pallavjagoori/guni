@@ -90,7 +90,7 @@ describe("PaperView", () => {
     expect(html).toContain("Upload the official marking scheme PDF");
     expect(html).toContain('href="/api/admin/papers/p1/export"');
     expect(html).toContain("Q1 · mcq_single · 1 marks · diagram on page 5");
-    expect(html).toContain("(A) 10 N/C");
+    expect(html).toContain('(A) <span class="whitespace-pre-wrap">10 N/C</span>');
     // Formulas in stems and steps are drawn by KaTeX, not shown as raw LaTeX.
     expect(html).toContain("<mfrac>");
     expect(html).toContain("ε");

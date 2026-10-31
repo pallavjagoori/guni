@@ -1,18 +1,43 @@
-import ReactMarkdown from "react-markdown";
-import rehypeKatex from "rehype-katex";
-import remarkMath from "remark-math";
+// Shows transcribed text with its LaTeX formulas typeset. Only $...$ (inline) and $$...$$
+// (display) are special; everything else, line breaks included, is shown exactly as stored.
+import katex from "katex";
+import "katex/dist/katex.min.css";
 
-// Renders question text: Markdown with LaTeX between $...$ (inline) or $$...$$ (display).
-// A formula KaTeX can't parse is shown in red instead of breaking the page.
+type Part = { math: false; text: string } | { math: true; tex: string; display: boolean };
+
+// $$...$$, or $...$ that doesn't start or end with a space and isn't followed by a digit,
+// so prices like "$5 and $10" stay text. \$ is a literal dollar sign.
+const MATH = /\$\$([\s\S]+?)\$\$|\$(?=\S)((?:\\.|[^$\\])+?)(?<=\S)\$(?!\d)/g;
+
+export function splitMath(text: string): Part[] {
+  const parts: Part[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MATH)) {
+    if (m.index > last) parts.push({ math: false, text: text.slice(last, m.index) });
+    parts.push(m[1] !== undefined ? { math: true, tex: m[1], display: true } : { math: true, tex: m[2], display: false });
+    last = m.index + m[0].length;
+  }
+  if (last < text.length) parts.push({ math: false, text: text.slice(last) });
+  return parts.map((p) => (p.math ? p : { math: false, text: p.text.replace(/\\\$/g, "$") }));
+}
+
 export function MathText({ children, inline = false }: { children: string; inline?: boolean }) {
+  const Tag = inline ? "span" : "div";
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkMath]}
-      rehypePlugins={[[rehypeKatex, { throwOnError: false, strict: false }]]}
-      // Inline use (options, marking steps) must not wrap text in a block <p>.
-      components={inline ? { p: ({ children }) => <>{children}</> } : undefined}
-    >
-      {children}
-    </ReactMarkdown>
+    <Tag className="whitespace-pre-wrap">
+      {splitMath(children).map((p, i) =>
+        p.math ? (
+          <span
+            key={i}
+            className={p.display ? "block overflow-x-auto py-1" : undefined}
+            dangerouslySetInnerHTML={{
+              __html: katex.renderToString(p.tex, { displayMode: p.display, throwOnError: false, strict: false }),
+            }}
+          />
+        ) : (
+          p.text
+        ),
+      )}
+    </Tag>
   );
 }

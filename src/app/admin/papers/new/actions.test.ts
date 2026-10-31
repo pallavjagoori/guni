@@ -60,6 +60,7 @@ describe("createPaper", () => {
   it("explains duplicates and passes other errors through", async () => {
     respond = (c) => (c.target === "papers" ? { error: { message: "dup", code: "23505" } } : uploaded(c));
     expect(await createPaper(input)).toEqual({ error: "This paper is already imported." });
+    expect(calls.find((c) => c.ops.some((o) => o.method === "remove"))!.ops[0].args).toEqual([[path]]);
     respond = (c) => (c.target === "papers" ? { error: { message: "other" } } : uploaded(c));
     expect(await createPaper(input)).toEqual({ error: "other" });
   });

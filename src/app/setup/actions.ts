@@ -32,7 +32,11 @@ export async function createFirstAdmin(_prev: FormState, formData: FormData): Pr
   });
   if (error) return { error: error.message };
   const { error: roleError } = await admin.from("profiles").update({ role: "admin" }).eq("id", data.user.id);
-  if (roleError) return { error: roleError.message };
+  if (roleError) {
+    // Undo, so the same email can be used again and setup stays usable.
+    await admin.auth.admin.deleteUser(data.user.id);
+    return { error: roleError.message };
+  }
 
   const supabase = await createClient();
   await supabase.auth.signInWithPassword({ email, password });

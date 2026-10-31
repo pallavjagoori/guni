@@ -117,7 +117,8 @@ export function extractSection(
   );
 }
 
-const LETTERS = ["A", "B", "C", "D"];
+// CBSE prints options as (A)-(D); JEE and NEET as (1)-(4).
+const OPTION_LABELS = ["A,B,C,D", "1,2,3,4"];
 
 // Deterministic checks against the paper's own outline. Each problem is one sentence for the admin.
 export function checkExtraction(outline: Outline, questions: ExtractedQuestion[]): string[] {
@@ -145,8 +146,8 @@ export function checkExtraction(outline: Outline, questions: ExtractedQuestion[]
         issues.push(`${label} carries ${v.marks} marks; its section gives ${section.marksEach}.`);
       }
       if (v.kind === "mcq_single" || v.kind === "mcq_multi" || v.kind === "assertion_reason") {
-        if (v.options.map((o) => o.label).join() !== LETTERS.join()) {
-          issues.push(`${label} should have options A to D; found ${v.options.map((o) => o.label).join(", ") || "none"}.`);
+        if (!OPTION_LABELS.includes(v.options.map((o) => o.label).join())) {
+          issues.push(`${label} should have four options, A to D or 1 to 4; found ${v.options.map((o) => o.label).join(", ") || "none"}.`);
         }
       } else if (v.options.length > 0) {
         issues.push(`${label} is ${v.kind} but has options.`);
@@ -157,6 +158,6 @@ export function checkExtraction(outline: Outline, questions: ExtractedQuestion[]
       }
     }
   }
-  if (total !== outline.maxMarks) issues.push(`Marks add up to ${total}; the paper says ${outline.maxMarks}.`);
+  if (Math.abs(total - outline.maxMarks) > 1e-9) issues.push(`Marks add up to ${total}; the paper says ${outline.maxMarks}.`);
   return issues;
 }

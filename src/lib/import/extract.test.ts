@@ -45,8 +45,19 @@ describe("checkExtraction", () => {
 
   it("checks multiple-choice options", () => {
     const issues = checkExtraction(outline, [{ ...mcq(1), options: options.slice(0, 3) }, { ...mcq(2), kind: "assertion_reason", options: [] }, long(1)]);
-    expect(issues).toContain("Question 1 should have options A to D; found A, B, C.");
-    expect(issues).toContain("Question 2 should have options A to D; found none.");
+    expect(issues).toContain("Question 1 should have four options, A to D or 1 to 4; found A, B, C.");
+    expect(issues).toContain("Question 2 should have four options, A to D or 1 to 4; found none.");
+  });
+
+  it("accepts numbered options (JEE, NEET) and fractional marks", () => {
+    const numbered = ["1", "2", "3", "4"].map((label) => ({ label, body: label }));
+    expect(checkExtraction(outline, [{ ...mcq(1), options: numbered }, mcq(2), long(1)])).toEqual([]);
+    // 0.1 + 0.1 + 0.1 is 0.30000000000000004 in floating point.
+    const tenths: Outline = {
+      totalQuestions: 3, maxMarks: 0.3, durationMinutes: 60,
+      sections: [{ title: "A", firstQuestion: 1, lastQuestion: 3, marksEach: 0.1, objective: true, instructions: "" }],
+    };
+    expect(checkExtraction(tenths, [1, 2, 3].map((n) => ({ ...mcq(n), marks: 0.1 })))).toEqual([]);
   });
 
   it("flags options on a written question and written questions in an objective section", () => {

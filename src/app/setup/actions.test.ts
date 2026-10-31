@@ -7,11 +7,12 @@ const redirect = vi.fn((to: string) => {
 vi.mock("next/navigation", () => ({ redirect }));
 const adminExists = vi.fn(async () => false);
 vi.mock("@/lib/auth", () => ({ adminExists }));
+const deleteUser = vi.fn(async (_id: string) => ({}));
 const createUser = vi.fn(async (_attributes: object) => ({ data: { user: { id: "u1" } }, error: null as { message: string } | null }));
 let profileReply: Reply = {};
 const signInWithPassword = vi.fn(async () => ({}));
 vi.mock("@/lib/supabase/server", () => ({
-  createAdminClient: () => fakeDb(() => profileReply, { admin: { createUser } }).db,
+  createAdminClient: () => fakeDb(() => profileReply, { admin: { createUser, deleteUser } }).db,
   createClient: async () => ({ auth: { signInWithPassword } }),
 }));
 
@@ -53,5 +54,6 @@ describe("createFirstAdmin", () => {
   it("reports a failed role change", async () => {
     profileReply = { error: { message: "denied" } };
     expect(await createFirstAdmin({}, valid())).toEqual({ error: "denied" });
+    expect(deleteUser).toHaveBeenCalledWith("u1");
   });
 });

@@ -84,14 +84,25 @@ export async function saveSection(db: SupabaseClient, paperId: string, position:
   if (options.length) must(await db.from("options").insert(options));
 }
 
-// Replaces the paper's open extraction flags with the latest check results.
+export const FLAG_PREFIX = "Extraction: ";
+
+// Replaces the paper's open extraction flags with the latest check results. Flags from
+// admins or other pipeline steps are left alone.
 export async function flagPaper(db: SupabaseClient, paperId: string, issues: string[]) {
   must(
-    await db.from("review_flags").delete().eq("entity", "paper").eq("entity_id", paperId).eq("resolved", false),
+    await db
+      .from("review_flags")
+      .delete()
+      .eq("entity", "paper")
+      .eq("entity_id", paperId)
+      .eq("resolved", false)
+      .like("reason", `${FLAG_PREFIX}%`),
   );
   if (issues.length) {
     must(
-      await db.from("review_flags").insert(issues.map((reason) => ({ entity: "paper", entity_id: paperId, reason }))),
+      await db
+        .from("review_flags")
+        .insert(issues.map((issue) => ({ entity: "paper", entity_id: paperId, reason: FLAG_PREFIX + issue }))),
     );
   }
 }
@@ -137,7 +148,8 @@ export async function loadExtraction(
   };
   const questions = sections.flatMap((s) =>
     s.questions.map((q) => {
-      const [, number, or] = /^(\d+)(?: \(OR (\d+)\))?$/.exec(q.label)!;
+      // Labels are written by saveSection; one edited by hand becomes question 0, which the checks report.
+      const [, number = "0", or] = /^(\d+)(?: \(OR (\d+)\))?$/.exec(q.label) ?? [];
       return {
         number: Number(number),
         alternative: or ? Number(or) + 1 : 1,

@@ -40,7 +40,7 @@ const call = (body: unknown) =>
 const pdf = { arrayBuffer: async () => new TextEncoder().encode("%PDF").buffer };
 const withPaper = (extra: (c: Call) => Reply = () => ({})) => (c: Call): Reply => {
   if (c.target === "papers" && c.ops.some((o) => o.method === "maybeSingle")) {
-    return { data: { id: "p1", source_pdf_path: "uploads/a.pdf" } };
+    return { data: { id: "p1", source_pdf_path: "uploads/a.pdf", status: "collected" } };
   }
   if (c.target === "storage:papers") return { data: pdf };
   return extra(c);
@@ -63,6 +63,19 @@ describe("POST extract", () => {
 
   it("404s for an unknown paper", async () => {
     expect((await call({ step: "check" })).status).toBe(404);
+  });
+
+  it("refuses to re-extract a paper that is past extraction", async () => {
+    respond = (c) => (c.target === "papers" ? { data: { id: "p1", source_pdf_path: "uploads/a.pdf", status: "ready" } } : {});
+    expect((await call({ step: "outline" })).status).toBe(409);
+    expect(extractOutline).not.toHaveBeenCalled();
+  });
+
+  it("records the AI cost even when saving fails", async () => {
+    respond = withPaper();
+    save.saveSection.mockRejectedValueOnce(new Error("insert failed"));
+    expect((await call({ step: "section", position: 1 })).status).toBe(500);
+    expect(save.logRun).toHaveBeenCalled();
   });
 
   it("reads the outline from the PDF and saves it", async () => {
@@ -101,7 +114,7 @@ describe("POST extract", () => {
   });
 
   it("needs a PDF before reading", async () => {
-    respond = (c) => (c.target === "papers" ? { data: { id: "p1", source_pdf_path: null } } : {});
+    respond = (c) => (c.target === "papers" ? { data: { id: "p1", source_pdf_path: null, status: "extracted" } } : {});
     expect((await call({ step: "outline" })).status).toBe(409);
   });
 

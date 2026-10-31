@@ -41,6 +41,7 @@ export async function createPaper(input: z.input<typeof newPaper>): Promise<{ id
     .select("id")
     .single();
   if (error) {
+    await db.storage.from("papers").remove([path]);
     return { error: error.code === "23505" ? "This paper is already imported." : error.message };
   }
   return { id: data.id };

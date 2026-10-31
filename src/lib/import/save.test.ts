@@ -90,7 +90,8 @@ describe("flagPaper", () => {
     const { db, calls } = setup();
     await flagPaper(db, "p1", ["Question 2 is missing."]);
     expect(op(calls[0], "delete")).toBeDefined();
-    expect(op(calls[1], "insert")!.args[0]).toEqual([{ entity: "paper", entity_id: "p1", reason: "Question 2 is missing." }]);
+    expect(op(calls[0], "like")!.args).toEqual(["reason", "Extraction: %"]);
+    expect(op(calls[1], "insert")!.args[0]).toEqual([{ entity: "paper", entity_id: "p1", reason: "Extraction: Question 2 is missing." }]);
   });
   it("only clears when there are no issues", async () => {
     const { db, calls } = setup();
@@ -117,6 +118,14 @@ describe("loadExtraction", () => {
     expect(o.sections.map((s) => [s.title, s.instructions, s.marksEach])).toEqual([["S1", "", 2], ["S2", "x", 2]]);
     expect(questions.map((x) => [x.number, x.alternative, x.marks])).toEqual([[1, 1, 2], [2, 1, 2], [3, 1, 2], [3, 2, 2]]);
     expect(questions[0].options.map((x) => x.label)).toEqual(["A", "B"]);
+  });
+
+  it("turns a hand-edited label into question 0 so the checks report it", async () => {
+    const { db } = setup(() => ({
+      data: { max_marks: 1, duration_minutes: 1, sections: [{ position: 1, title: "A", instructions: null, marks_correct: 1, first_question: 1, last_question: 1, objective: false,
+        questions: [{ label: "23(b)", kind: "descriptive", stem: "s", marks: 1, figure: null, options: [] }] }] },
+    }));
+    expect((await loadExtraction(db, "p1")).questions[0]).toMatchObject({ number: 0, alternative: 1 });
   });
 
   it("handles a paper with no sections yet", async () => {

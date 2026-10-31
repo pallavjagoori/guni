@@ -7,11 +7,18 @@ const refresh = vi.fn();
 vi.mock("next/navigation", () => ({ useRouter: () => ({ refresh }) }));
 const { ExtractButton } = await import("./extract-button");
 
-type Reply = { ok?: boolean; status?: number; body: object };
+type Reply = { ok?: boolean; status?: number; body: object | null };
 let replies: Reply[] = [];
 const fetchMock = vi.fn(async (..._args: unknown[]) => {
   const r = replies.shift()!;
-  return { ok: r.ok ?? true, status: r.status ?? 200, json: async () => r.body };
+  return {
+    ok: r.ok ?? true,
+    status: r.status ?? 200,
+    json: async () => {
+      if (r.body === null) throw new SyntaxError("Unexpected token <");
+      return r.body;
+    },
+  };
 });
 beforeEach(() => vi.stubGlobal("fetch", fetchMock));
 afterEach(() => {
@@ -53,9 +60,9 @@ describe("ExtractButton", () => {
   });
 
   it("falls back to the status code when the error has no message", async () => {
-    replies = [{ ok: false, status: 502, body: {} }];
+    replies = [{ ok: false, status: 504, body: null }];
     render(<ExtractButton paperId="p1" hasQuestions={false} />);
     await userEvent.click(screen.getByRole("button"));
-    expect(await screen.findByText("Stopped: Request failed (502)")).toBeDefined();
+    expect(await screen.findByText("Stopped: Request failed (504)")).toBeDefined();
   });
 });

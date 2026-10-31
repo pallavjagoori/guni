@@ -9,6 +9,8 @@ import { createAdminClient } from "@/lib/supabase/server";
 // The admin page calls: outline, then each section, then check.
 export const maxDuration = 300;
 
+const EXTRACTABLE = new Set(["collected", "extracted"]);
+
 const step = z.discriminatedUnion("step", [
   z.object({ step: z.literal("outline") }),
   z.object({ step: z.literal("section"), position: z.number().int().min(1) }),
@@ -25,8 +27,13 @@ export async function POST(request: Request, ctx: RouteContext<"/api/admin/paper
   const { id } = await ctx.params;
   const db = createAdminClient();
 
-  const { data: paper } = await db.from("papers").select("id, source_pdf_path").eq("id", id).maybeSingle();
+  const { data: paper } = await db.from("papers").select("id, source_pdf_path, status").eq("id", id).maybeSingle();
   if (!paper) return Response.json({ error: "Paper not found." }, { status: 404 });
+  // Re-extracting replaces questions, which would delete answer keys, tags and student
+  // responses that hang off them. Only papers not yet tagged can be extracted.
+  if (!EXTRACTABLE.has(paper.status)) {
+    return Response.json({ error: "This paper is past extraction; edit its questions instead." }, { status: 409 });
+  }
 
   try {
     if (parsed.data.step === "check") {
@@ -45,8 +52,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/admin/paper
 
     if (parsed.data.step === "outline") {
       const run = await extractOutline(anthropic(), pdf);
-      await saveOutline(db, id, run.data);
       await logRun(db, "extract", PROMPT_VERSION, run);
+      await saveOutline(db, id, run.data);
       return Response.json({ sections: run.data.sections.length, costUsd: run.costUsd });
     }
 
@@ -54,8 +61,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/admin/paper
     const section = outline.sections[parsed.data.position - 1];
     if (!section) return Response.json({ error: "No such section." }, { status: 404 });
     const run = await extractSection(anthropic(), pdf, section);
-    await saveSection(db, id, parsed.data.position, run.data.questions);
     await logRun(db, "extract", PROMPT_VERSION, run);
+    await saveSection(db, id, parsed.data.position, run.data.questions);
     return Response.json({ questions: run.data.questions.length, costUsd: run.costUsd });
   } catch (e) {
     return Response.json({ error: (e as Error).message }, { status: 500 });

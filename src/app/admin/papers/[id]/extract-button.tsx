@@ -9,7 +9,8 @@ async function call(paperId: string, body: object) {
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
-  const json = await res.json();
+  // A platform timeout returns an HTML page, not JSON.
+  const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`);
   return json;
 }

@@ -23,9 +23,16 @@ do $$ begin
   end if;
 end $$;
 
-insert into exams (id, code, name) values ('10000000-0000-0000-0000-000000000001', 'cbse12', 'CBSE 12');
+insert into exams (id, code, name) values ('10000000-0000-0000-0000-000000000001', 'test-exam', 'Test exam');
 insert into subjects (id, exam_id, code, name)
   values ('20000000-0000-0000-0000-000000000001', '10000000-0000-0000-0000-000000000001', 'physics', 'Physics');
+
+-- Migrations seed the exams the app offers.
+do $$ begin
+  if (select count(*) from subjects s join exams e on e.id = s.exam_id where e.code = 'cbse12') < 6 then
+    raise exception 'CBSE 12 subjects were not seeded';
+  end if;
+end $$;
 insert into papers (id, subject_id, year, duration_minutes, max_marks, status) values
   ('30000000-0000-0000-0000-000000000001', '20000000-0000-0000-0000-000000000001', 2024, 180, 70, 'ready'),
   ('30000000-0000-0000-0000-000000000002', '20000000-0000-0000-0000-000000000001', 2023, 180, 70, 'ready'),

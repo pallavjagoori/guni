@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const tracks = [
   { code: "cbse12", name: "CBSE Class 12", note: "Board PYQs by subject" },
   { code: "jee", name: "JEE Main and Advanced", note: "Coming after the CBSE release" },
@@ -21,6 +23,9 @@ export default function Home() {
           </li>
         ))}
       </ul>
+      <Link href="/login" className="self-start text-sm underline">
+        Sign in
+      </Link>
     </main>
   );
 }

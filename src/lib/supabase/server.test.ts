@@ -69,6 +69,6 @@ describe("createAdminClient", () => {
   it("fails loudly when the service role key is missing", async () => {
     vi.stubEnv("SUPABASE_SERVICE_ROLE_KEY", "");
     const { createAdminClient } = await import("./server");
-    expect(() => createAdminClient()).toThrow(/SUPABASE_SERVICE_ROLE_KEY/);
+    expect(() => createAdminClient()).toThrow(/SUPABASE_SERVICE_ROLE_KEY nor SUPABASE_SECRET_KEY/);
   });
 });

@@ -2,7 +2,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { supabasePublicKey, supabaseUrl } from "./env";
+import { supabasePublicKey, supabaseServiceKey, supabaseUrl } from "./env";
 
 // Acts as the signed-in user: row level security applies.
 export async function createClient() {
@@ -25,7 +25,5 @@ export async function createClient() {
 
 // Bypasses row level security. Only for background jobs (content pipeline, rough-work review).
 export function createAdminClient() {
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!key) throw new Error("SUPABASE_SERVICE_ROLE_KEY is not set");
-  return createServiceClient(supabaseUrl(), key, { auth: { persistSession: false } });
+  return createServiceClient(supabaseUrl(), supabaseServiceKey(), { auth: { persistSession: false } });
 }

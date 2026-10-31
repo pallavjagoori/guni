@@ -1,0 +1,31 @@
+name: Migrate database
+
+# Applies new files in supabase/migrations to the production database after a merge.
+# Applied migrations are recorded by the Supabase CLI, so each runs exactly once.
+on:
+  push:
+    branches: [main]
+    paths: ["supabase/migrations/**"]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check the database secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Add the SUPABASE_DB_URL repository secret (Vercel → Storage → SUPABASE_POSTGRES_URL_NON_POOLING)."
+            exit 1
+          fi
+      - name: Push migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npx -y supabase@2.122.0 db push --db-url "$SUPABASE_DB_URL" --yes

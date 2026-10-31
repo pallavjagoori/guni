@@ -12,8 +12,8 @@ const outline: Outline = {
   ],
 };
 const options = ["A", "B", "C", "D"].map((label) => ({ label, body: label.toLowerCase() }));
-const mcq = (number: number): ExtractedQuestion => ({ number, alternative: 1, kind: "mcq_single", stem: "s", marks: 1, options, figure: null });
-const long = (alternative: number): ExtractedQuestion => ({ number: 3, alternative, kind: "descriptive", stem: "s", marks: 4, options: [], figure: null });
+const mcq = (number: number): ExtractedQuestion => ({ number, alternative: 1, part: "", kind: "mcq_single", stem: "s", marks: 1, options, figure: null });
+const long = (alternative: number): ExtractedQuestion => ({ number: 3, alternative, part: "", kind: "descriptive", stem: "s", marks: 4, options: [], figure: null });
 const good = [mcq(1), mcq(2), long(1), long(2)];
 
 describe("checkExtraction", () => {
@@ -64,6 +64,37 @@ describe("checkExtraction", () => {
     const issues = checkExtraction(outline, [{ ...mcq(1), kind: "descriptive" }, { ...mcq(2), kind: "mcq_multi" }, long(1)]);
     expect(issues).toContain("Question 1 is descriptive but has options.");
     expect(issues).toContain("Question 1 is descriptive in an objective section.");
+  });
+
+  it("flags a numerical question in a written section", () => {
+    expect(checkExtraction(outline, [mcq(1), mcq(2), { ...long(1), kind: "numerical" }])).toEqual([
+      "Question 3 is numerical in a written section; it should be descriptive.",
+    ]);
+  });
+
+  it("accepts a case study as 1-mark parts, counting a part's OR choice once", () => {
+    const part = (p: string, alternative = 1): ExtractedQuestion => ({ ...mcq(3), part: p, alternative });
+    const caseStudy = [part("I"), part("II"), part("III"), part("(iii)", 2), part("IV")];
+    expect(checkExtraction(outline, [mcq(1), mcq(2), ...caseStudy])).toEqual([]);
+  });
+
+  it("checks case-study parts", () => {
+    const part = (p: string, extra: Partial<ExtractedQuestion> = {}): ExtractedQuestion => ({ ...mcq(3), part: p, ...extra });
+    const issues = checkExtraction(outline, [
+      mcq(1), mcq(2), long(1), part("I"), part("II", { alternative: 3 }), part("II", { alternative: 1, marks: 2 }),
+    ]);
+    expect(issues).toEqual([
+      "Question 3 mixes sub-questions with a whole question.",
+      "Question 3 (II) has alternatives 1, 3.",
+      "Question 3 (II) (alternative 1) carries 2 marks; its other version carries 1.",
+    ]);
+    expect(checkExtraction(outline, [mcq(1), mcq(2), part("I"), part("II"), part("I-a", { marks: 2 })])).toContain(
+      "Question 3 (I-A) has a part label that isn't a plain numeral.",
+    );
+    expect(checkExtraction(outline, [mcq(1), mcq(2), part("I"), part("II")])).toEqual([
+      "Question 3's parts add up to 2 marks; its section gives 4.",
+      "Marks add up to 4; the paper says 6.",
+    ]);
   });
 
   it("checks diagram boxes", () => {

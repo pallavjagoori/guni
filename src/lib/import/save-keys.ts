@@ -1,10 +1,11 @@
 // Loads the questions a marking scheme must answer, and saves the answers it gives.
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { KeyAnswer, KeyTarget } from "./keys";
-import { must, parseLabel } from "./save";
+import { must, parseLabel, questionLabel } from "./save";
 
 type Row = {
   id: string;
+  position: number;
   label: string;
   kind: KeyTarget["kind"];
   stem: string;
@@ -12,18 +13,19 @@ type Row = {
   options: { label: string }[];
 };
 
-// Questions of one section (or every section when position is omitted), as key targets.
+// Questions of one section (or every section when position is omitted), as key targets, in
+// printed order: by number, then as saved (which keeps a part's OR alternatives together).
 export async function loadTargets(db: SupabaseClient, paperId: string, position?: number): Promise<KeyTarget[]> {
   let query = db
     .from("sections")
-    .select("position, marks_correct, questions(id, label, kind, stem, marks, options(label))")
+    .select("position, marks_correct, questions(id, position, label, kind, stem, marks, options(label))")
     .eq("paper_id", paperId);
   if (position !== undefined) query = query.eq("position", position);
   const sections = must(await query) as { position: number; marks_correct: number; questions: Row[] }[];
   return [...sections]
     .sort((a, b) => a.position - b.position)
     .flatMap((s) =>
-      s.questions.map((q) => {
+      [...s.questions].sort((a, b) => a.position - b.position).map((q) => {
         return {
           id: q.id,
           label: q.label,
@@ -35,7 +37,7 @@ export async function loadTargets(db: SupabaseClient, paperId: string, position?
         };
       }),
     )
-    .sort((a, b) => a.number - b.number || a.alternative - b.alternative);
+    .sort((a, b) => a.number - b.number);
 }
 
 // "(b)" -> "B": the scheme's way of printing a label, normalised to the question's.
@@ -50,11 +52,11 @@ export async function saveKeys(db: SupabaseClient, allTargets: KeyTarget[], answ
   must(await db.from("answer_keys").delete().eq("source", "official").in("question_id", ids));
   must(await db.from("solutions").delete().eq("source", "marking_scheme").in("question_id", ids));
 
-  const byKey = new Map(answers.map((a) => [`${a.number}/${a.alternative}`, a]));
+  const byKey = new Map(answers.map((a) => [questionLabel(a), a]));
   const keys = [];
   const solutions = [];
   for (const t of targets) {
-    const a = byKey.get(`${t.number}/${t.alternative}`);
+    const a = byKey.get(questionLabel(t));
     if (!a) continue;
     if (t.kind === "numerical" && a.numericalAnswer != null) {
       keys.push({ question_id: t.id, numerical_answer: a.numericalAnswer, numerical_tolerance: a.numericalTolerance ?? 0 });
@@ -100,6 +102,7 @@ export async function loadAnswers(db: SupabaseClient, targets: KeyTarget[]): Pro
       return {
         number: t.number,
         alternative: t.alternative,
+        part: t.part,
         correctLabels: k?.correct_labels ?? [],
         numericalAnswer: k?.numerical_answer == null ? null : Number(k.numerical_answer),
         numericalTolerance: k ? Number(k.numerical_tolerance) : null,

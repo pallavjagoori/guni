@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { describe, expect, it } from "vitest";
 import { fakeDb, op, type Call, type Reply } from "@/test/fake-db";
 import type { ExtractedQuestion, Outline } from "./extract";
-import { flagPaper, loadExtraction, logRun, saveOutline, saveSection } from "./save";
+import { flagPaper, loadExtraction, logRun, saveOutline, saveSection, parseLabel, questionLabel } from "./save";
 
 const setup = (respond: (c: Call) => Reply = () => ({})) => {
   const { db, calls } = fakeDb(respond);
@@ -16,7 +16,23 @@ const outline: Outline = {
 };
 const options = [{ label: "B", body: "b" }, { label: "A", body: "a" }];
 const q = (number: number, alternative = 1, extra: Partial<ExtractedQuestion> = {}): ExtractedQuestion => ({
-  number, alternative, kind: "mcq_single", stem: `Q${number}`, marks: 1, options, figure: null, ...extra,
+  number, alternative, part: "", kind: "mcq_single", stem: `Q${number}`, marks: 1, options, figure: null, ...extra,
+});
+
+describe("question labels", () => {
+  it("round-trip whole questions, OR alternatives and case-study parts", () => {
+    for (const q of [
+      { number: 23, part: "", alternative: 1 },
+      { number: 23, part: "", alternative: 2 },
+      { number: 29, part: "III", alternative: 1 },
+      { number: 29, part: "III", alternative: 2 },
+    ]) {
+      expect(parseLabel(questionLabel(q))).toEqual(q);
+    }
+    expect(questionLabel({ number: 29, part: "III", alternative: 2 })).toBe("29 (III) (OR 1)");
+    expect(questionLabel({ number: 29, part: " (iii)", alternative: 1 })).toBe("29 (III)");
+    expect(questionLabel({ number: 29, part: "Part IV", alternative: 1 })).toBe("29 (IV)");
+  });
 });
 
 describe("logRun", () => {
@@ -69,6 +85,24 @@ describe("saveSection", () => {
     expect(op(calls[3], "insert")!.args[0]).toEqual([
       { question_id: "q1", label: "B", body: "b" },
       { question_id: "q1", label: "A", body: "a" },
+    ]);
+  });
+
+  it("keeps case-study parts in printed order, grouping a part's OR alternatives", async () => {
+    const { db, calls } = setup((c) => {
+      if (c.target === "sections") return { data: { id: "s1" } };
+      if (c.target === "questions" && op(c, "insert")) return { data: [1, 2, 3, 4].map((p) => ({ id: `q${p}`, position: p })) };
+      return {};
+    });
+    await saveSection(db, "p1", 1, [
+      q(29, 1, { part: "IV" }), q(29, 2, { part: "(iii)" }), q(29, 1, { part: "III" }), q(28),
+    ]);
+    const rows = op(calls[2], "insert")!.args[0] as { label: string; internal_choice_group: string | null }[];
+    expect(rows.map((r) => [r.label, r.internal_choice_group])).toEqual([
+      ["28", null],
+      ["29 (IV)", null],
+      ["29 (III)", "q29-III"],
+      ["29 (III) (OR 1)", "q29-III"],
     ]);
   });
 

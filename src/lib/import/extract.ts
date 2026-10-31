@@ -6,7 +6,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { MODELS, costUsd, type Usage } from "@/lib/ai/models";
 
-export const PROMPT_VERSION = "extract-v2";
+export const PROMPT_VERSION = "extract-v3";
 
 export const outlineSchema = z.object({
   totalQuestions: z.number().int(),
@@ -31,6 +31,7 @@ export const questionKinds = ["mcq_single", "mcq_multi", "assertion_reason", "nu
 export const extractedQuestionSchema = z.object({
   number: z.number().int(), // as printed: 23
   alternative: z.number().int(), // 1 for the first or only version, 2 for the "OR" alternative, ...
+  part: z.string(), // a case study's sub-question as printed ("I", "II", ...); "" for a whole question
   kind: z.enum(questionKinds),
   stem: z.string(), // Plain text with LaTeX ($...$) for every formula
   marks: z.number(),
@@ -44,6 +45,9 @@ export const extractedQuestionSchema = z.object({
     .nullable(),
 });
 export type ExtractedQuestion = z.infer<typeof extractedQuestionSchema>;
+
+// "(iii)", "Part III" and "III" all name the same case-study part.
+export const normalisePart = (part: string) => part.replace(/^\s*part\b/i, "").replace(/[()\s.]/g, "").toUpperCase();
 
 export const sectionResultSchema = z.object({ questions: z.array(extractedQuestionSchema) });
 
@@ -59,7 +63,15 @@ Rules:
   Put a displayed equation on its own lines as $$...$$.
 - Keep sub-parts such as (a), (b), (i), (ii) inside the question's stem, each on its own line with its label as printed.
 - A question printed with "OR" between versions is several alternatives with the same number: alternative 1, 2, ...
-  An "OR" inside one sub-part of a case study stays in the stem as text instead.
+- A case-study question (a passage followed by sub-questions (I), (II), ... that each have their own options)
+  is one question per sub-question, all with the same number and part set to the sub-question's label ("I", "II", ...).
+  Each stem is the passage, a blank line, then the sub-question. Each carries its own marks (usually 1).
+  An "OR" between two versions of one sub-question gives that part alternatives 1 and 2.
+  Every other question has part "".
+  In a written case study (sub-questions without options), an "OR" inside one sub-part stays in the stem as text.
+- Use kind "numerical" only for a question answered by entering a number in an objective section.
+  A problem answered in writing is "descriptive", even when its answer is a number.
+- Instructions shared by several questions ("For questions 13 to 16 ...") belong to the section, not to a stem.
 - Options: give the label without brackets ("A") and the option text. Descriptive questions have no options.
 - If a question has a diagram, give its page (1-based) and a box around the diagram only, as fractions of the page.`;
 
@@ -146,26 +158,44 @@ export function checkExtraction(outline: Outline, questions: ExtractedQuestion[]
   for (const [n, versions] of byNumber) {
     const section = outline.sections.find((s) => n >= s.firstQuestion && n <= s.lastQuestion);
     if (!section) issues.push(`Question ${n} is not in any section.`);
-    const alternatives = versions.map((v) => v.alternative).sort((a, b) => a - b);
-    if (alternatives.some((a, i) => a !== i + 1)) issues.push(`Question ${n} has alternatives ${alternatives.join(", ")}.`);
-    total += versions[0].marks;
-    for (const v of versions) {
-      const label = versions.length > 1 ? `Question ${n} (alternative ${v.alternative})` : `Question ${n}`;
-      if (section && v.marks !== section.marksEach) {
-        issues.push(`${label} carries ${v.marks} marks; its section gives ${section.marksEach}.`);
-      }
-      if (v.kind === "mcq_single" || v.kind === "mcq_multi" || v.kind === "assertion_reason") {
-        if (!OPTION_LABELS.includes(v.options.map((o) => o.label).join())) {
-          issues.push(`${label} should have four options, A to D or 1 to 4; found ${v.options.map((o) => o.label).join(", ") || "none"}.`);
+    const parts = new Map<string, ExtractedQuestion[]>();
+    for (const v of versions) parts.set(normalisePart(v.part), [...(parts.get(normalisePart(v.part)) ?? []), v]);
+    const whole = parts.has("");
+    if (whole && parts.size > 1) issues.push(`Question ${n} mixes sub-questions with a whole question.`);
+
+    let marks = 0;
+    for (const [part, alts] of parts) {
+      const name = part ? `Question ${n} (${part})` : `Question ${n}`;
+      if (/[^A-Z0-9]/.test(part)) issues.push(`${name} has a part label that isn't a plain numeral.`);
+      const alternatives = alts.map((v) => v.alternative).sort((a, b) => a - b);
+      if (alternatives.some((a, i) => a !== i + 1)) issues.push(`${name} has alternatives ${alternatives.join(", ")}.`);
+      marks += alts[0].marks;
+      for (const v of alts) {
+        const label = alts.length > 1 ? `${name} (alternative ${v.alternative})` : name;
+        if (section && !part && v.marks !== section.marksEach) {
+          issues.push(`${label} carries ${v.marks} marks; its section gives ${section.marksEach}.`);
         }
-      } else if (v.options.length > 0) {
-        issues.push(`${label} is ${v.kind} but has options.`);
-      }
-      if (section?.objective && v.kind === "descriptive") issues.push(`${label} is descriptive in an objective section.`);
-      if (v.figure && (v.figure.box.length !== 4 || v.figure.box.some((x) => x < 0 || x > 1))) {
-        issues.push(`${label} has a diagram box outside the page.`);
+        if (part && v.marks !== alts[0].marks) issues.push(`${label} carries ${v.marks} marks; its other version carries ${alts[0].marks}.`);
+        if (v.kind === "mcq_single" || v.kind === "mcq_multi" || v.kind === "assertion_reason") {
+          if (!OPTION_LABELS.includes(v.options.map((o) => o.label).join())) {
+            issues.push(`${label} should have four options, A to D or 1 to 4; found ${v.options.map((o) => o.label).join(", ") || "none"}.`);
+          }
+        } else if (v.options.length > 0) {
+          issues.push(`${label} is ${v.kind} but has options.`);
+        }
+        if (section?.objective && v.kind === "descriptive") issues.push(`${label} is descriptive in an objective section.`);
+        if (section && !section.objective && v.kind === "numerical") {
+          issues.push(`${label} is numerical in a written section; it should be descriptive.`);
+        }
+        if (v.figure && (v.figure.box.length !== 4 || v.figure.box.some((x) => x < 0 || x > 1))) {
+          issues.push(`${label} has a diagram box outside the page.`);
+        }
       }
     }
+    if (section && !whole && Math.abs(marks - section.marksEach) > 1e-9) {
+      issues.push(`Question ${n}'s parts add up to ${marks} marks; its section gives ${section.marksEach}.`);
+    }
+    total += whole ? parts.get("")![0].marks : marks;
   }
   if (Math.abs(total - outline.maxMarks) > 1e-9) issues.push(`Marks add up to ${total}; the paper says ${outline.maxMarks}.`);
   return issues;

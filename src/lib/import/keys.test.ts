@@ -3,10 +3,10 @@ import { describe, expect, it, vi } from "vitest";
 import { checkKeys, readKeys, type KeyAnswer, type KeyTarget } from "./keys";
 
 const target = (number: number, kind: KeyTarget["kind"], extra: Partial<KeyTarget> = {}): KeyTarget => ({
-  id: `q${number}`, label: String(number), number, alternative: 1, kind, marks: 1, stem: "A long   stem\nwith lines", optionLabels: ["A", "B", "C", "D"], ...extra,
+  id: `q${number}`, label: String(number), number, alternative: 1, part: "", kind, marks: 1, stem: "A long   stem\nwith lines", optionLabels: ["A", "B", "C", "D"], ...extra,
 });
 const answer = (number: number, extra: Partial<KeyAnswer> = {}): KeyAnswer => ({
-  number, alternative: 1, correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
+  number, alternative: 1, part: "", correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
 });
 
 describe("checkKeys", () => {
@@ -52,6 +52,15 @@ describe("checkKeys", () => {
   });
 });
 
+describe("checkKeys with case studies", () => {
+  it("matches answers by part and names the part", () => {
+    const parts = [target(29, "mcq_single", { part: "III" }), target(29, "mcq_single", { part: "III", alternative: 2 })];
+    expect(checkKeys(parts, [answer(29, { part: "(iii)", correctLabels: ["D"] })])).toEqual([
+      "Question 29 (III) (alternative 2) has no answer in the marking scheme.",
+    ]);
+  });
+});
+
 describe("readKeys", () => {
   it("asks for one set's answers, listing each question briefly", async () => {
     const parse = vi.fn(async (..._args: unknown[]) => ({
@@ -60,13 +69,17 @@ describe("readKeys", () => {
       usage: { input_tokens: 10, output_tokens: 10 },
     }));
     const client = { messages: { parse } } as unknown as Anthropic;
-    const result = await readKeys(client, "UERG", "55/1/1", [target(1, "mcq_single", { stem: "x".repeat(300) })]);
+    const result = await readKeys(client, "UERG", "55/1/1", [
+      target(1, "mcq_single", { stem: "x".repeat(300) }),
+      target(29, "mcq_single", { part: "IV", stem: "case" }),
+    ]);
     expect(result.data.answers[0].correctLabels).toEqual(["B"]);
     const params = parse.mock.calls[0][0] as { system: string; messages: { content: { text?: string }[] }[] };
     const text = params.messages[0].content[1].text!;
     expect(text).toContain("Use only set 55/1/1.");
     expect(text).toContain(`- Q1 alternative 1 (mcq_single, 1 marks): ${"x".repeat(140)}\n`.trimEnd());
     expect(text).not.toContain("x".repeat(141));
+    expect(text).toContain("- Q29 part IV alternative 1 (mcq_single, 1 marks): case");
     expect(params.system).toContain("marking scheme");
   });
 });

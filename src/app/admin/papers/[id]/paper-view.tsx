@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { MathText } from "@/components/math-text";
 import { getPaper } from "@/lib/admin/papers";
 import { requireAdmin } from "@/lib/auth";
+import { parseLabel } from "@/lib/import/save";
 import { ExtractButton } from "./extract-button";
 import { KeysPanel } from "./keys-panel";
 
@@ -11,7 +12,8 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
   const { id } = await params;
   const paper = await getPaper(id);
   if (!paper) notFound();
-  const count = paper.sections.reduce((n, s) => n + s.questions.length, 0);
+  // Printed questions: OR alternatives and case-study parts share a number.
+  const count = new Set(paper.sections.flatMap((s) => s.questions.map((q) => parseLabel(q.label).number))).size;
 
   return (
     <>

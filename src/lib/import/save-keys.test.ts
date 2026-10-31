@@ -9,25 +9,25 @@ const setup = (respond: (c: Call) => Reply = () => ({})) => {
   return { db: db as unknown as SupabaseClient, calls };
 };
 const t = (id: string, number: number, kind: KeyTarget["kind"], alternative = 1): KeyTarget => ({
-  id, label: String(number), number, alternative, kind, marks: 1, stem: "s", optionLabels: ["A", "B"],
+  id, label: String(number), number, alternative, part: "", kind, marks: 1, stem: "s", optionLabels: ["A", "B"],
 });
 const a = (number: number, extra: Partial<KeyAnswer> = {}): KeyAnswer => ({
-  number, alternative: 1, correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
+  number, alternative: 1, part: "", correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
 });
 
 describe("loadTargets", () => {
   const sections = [
     { position: 2, marks_correct: 3, questions: [
-      { id: "q3b", label: "3 (OR 1)", kind: "descriptive", stem: "s", marks: null, options: [] },
-      { id: "q3", label: "3", kind: "descriptive", stem: "s", marks: 3, options: [] },
+      { id: "q3b", position: 2, label: "3 (OR 1)", kind: "descriptive", stem: "s", marks: null, options: [] },
+      { id: "q3", position: 1, label: "3", kind: "descriptive", stem: "s", marks: 3, options: [] },
     ] },
     { position: 1, marks_correct: "1", questions: [
-      { id: "qx", label: "odd", kind: "mcq_single", stem: "s", marks: null, options: [{ label: "B" }, { label: "A" }] },
-      { id: "q1", label: "1", kind: "mcq_single", stem: "s", marks: null, options: [{ label: "B" }, { label: "A" }] },
+      { id: "qx", position: 1, label: "odd", kind: "mcq_single", stem: "s", marks: null, options: [{ label: "B" }, { label: "A" }] },
+      { id: "q1", position: 2, label: "1", kind: "mcq_single", stem: "s", marks: null, options: [{ label: "B" }, { label: "A" }] },
     ] },
   ];
 
-  it("returns every question, ordered by number and alternative", async () => {
+  it("returns every question in printed order", async () => {
     const { db, calls } = setup(() => ({ data: sections }));
     const targets = await loadTargets(db, "p1");
     expect(targets[0].label).toBe("odd");

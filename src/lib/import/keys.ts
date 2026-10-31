@@ -4,8 +4,9 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { runPdf, type RunResult } from "./extract";
+import { questionLabel } from "./save";
 
-export const KEYS_PROMPT_VERSION = "keys-v2";
+export const KEYS_PROMPT_VERSION = "keys-v3";
 export const KEYS_FLAG_PREFIX = "Answer keys: ";
 
 export const keyResultSchema = z.object({
@@ -13,6 +14,7 @@ export const keyResultSchema = z.object({
     z.object({
       number: z.number().int(),
       alternative: z.number().int(),
+      part: z.string(), // the case-study sub-question it answers, as listed; "" otherwise
       correctLabels: z.array(z.string()), // objective questions: every option the scheme accepts
       numericalAnswer: z.number().nullable(),
       numericalTolerance: z.number().nullable(),
@@ -27,6 +29,7 @@ export interface KeyTarget {
   label: string;
   number: number;
   alternative: number;
+  part: string;
   kind: "mcq_single" | "mcq_multi" | "assertion_reason" | "numerical" | "descriptive";
   marks: number;
   stem: string;
@@ -41,7 +44,9 @@ Rules:
   If the scheme accepts several options or awards marks for any attempt, list every accepted label.
 - For written answers, give each value point as a step with the marks the scheme awards for it.
   Write every formula and symbol in LaTeX between $...$ (e.g. $\\frac{hc}{\\lambda}$, $10^{-19}$), never Unicode math characters.
-- A question with "OR" alternatives has a separate answer for each alternative (1 = first version, 2 = after the first OR).`;
+- A question with "OR" alternatives has a separate answer for each alternative (1 = first version, 2 = after the first OR).
+- A case-study sub-question is listed with its part ("I", "II", ...). Answer each part separately with that part;
+  use part "" for every other question.`;
 
 const preview = (stem: string) => stem.replace(/\s+/g, " ").slice(0, 140);
 
@@ -52,7 +57,10 @@ export function readKeys(
   targets: KeyTarget[],
 ): Promise<RunResult<z.infer<typeof keyResultSchema>>> {
   const list = targets
-    .map((t) => `- Q${t.number} alternative ${t.alternative} (${t.kind}, ${t.marks} marks): ${preview(t.stem)}`)
+    .map(
+      (t) =>
+        `- Q${t.number}${t.part ? ` part ${t.part}` : ""} alternative ${t.alternative} (${t.kind}, ${t.marks} marks): ${preview(t.stem)}`,
+    )
     .join("\n");
   return runPdf(
     client,
@@ -68,15 +76,15 @@ const OBJECTIVE = new Set(["mcq_single", "mcq_multi", "assertion_reason"]);
 
 export function checkKeys(targets: KeyTarget[], answers: KeyAnswer[]): string[] {
   const issues: string[] = [];
-  const key = (n: number, a: number) => `${n}/${a}`;
-  const byKey = new Map(answers.map((a) => [key(a.number, a.alternative), a]));
+  const byKey = new Map(answers.map((a) => [questionLabel(a), a]));
   for (const t of targets) {
     if (t.number === 0) {
       issues.push(`Question labelled "${t.label}" can't be matched to the marking scheme.`);
       continue;
     }
-    const name = t.alternative > 1 ? `Question ${t.number} (alternative ${t.alternative})` : `Question ${t.number}`;
-    const answer = byKey.get(key(t.number, t.alternative));
+    const base = t.part ? `Question ${t.number} (${t.part})` : `Question ${t.number}`;
+    const name = t.alternative > 1 ? `${base} (alternative ${t.alternative})` : base;
+    const answer = byKey.get(questionLabel(t));
     if (!answer) {
       issues.push(`${name} has no answer in the marking scheme.`);
       continue;

@@ -1,6 +1,6 @@
 // Writes pipeline results with the service role. Re-running a step replaces its earlier output.
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { ExtractedQuestion, Outline, RunResult } from "./extract";
+import { normalisePart, type ExtractedQuestion, type Outline, type RunResult } from "./extract";
 
 type Result<T> = { data: T; error: { message: string } | null };
 
@@ -9,11 +9,17 @@ export function must<T>({ data, error }: Result<T>): T {
   return data;
 }
 
-// Reverses the labels saveSection writes: "23" and "23 (OR 1)". Any other label (edited by
-// hand) becomes question 0, which the checks report.
-export function parseLabel(label: string): { number: number; alternative: number } {
-  const [, number = "0", or] = /^(\d+)(?: \(OR (\d+)\))?$/.exec(label) ?? [];
-  return { number: Number(number), alternative: or ? Number(or) + 1 : 1 };
+// The label saveSection writes: "23", "23 (OR 1)", and for case-study parts "29 (III)" and
+// "29 (III) (OR 1)". Also the key that matches a marking-scheme answer to its question.
+export function questionLabel(q: { number: number; part: string; alternative: number }) {
+  const part = normalisePart(q.part);
+  return `${q.number}${part ? ` (${part})` : ""}${q.alternative > 1 ? ` (OR ${q.alternative - 1})` : ""}`;
+}
+
+// Reverses questionLabel. Any other label (edited by hand) becomes question 0, which the checks report.
+export function parseLabel(label: string): { number: number; part: string; alternative: number } {
+  const [, number = "0", part = "", or] = /^(\d+)(?: \(([^()\s]+)\))?(?: \(OR (\d+)\))?$/.exec(label) ?? [];
+  return { number: Number(number), part, alternative: or ? Number(or) + 1 : 1 };
 }
 
 export async function logRun(db: SupabaseClient, job: string, promptVersion: string, run: RunResult<unknown>) {
@@ -66,20 +72,29 @@ export async function saveSection(db: SupabaseClient, paperId: string, position:
   must(await db.from("questions").delete().eq("section_id", section.id));
   if (questions.length === 0) return;
 
-  const ordered = [...questions].sort((a, b) => a.number - b.number || a.alternative - b.alternative);
-  const versions = new Map<number, number>();
-  for (const q of ordered) versions.set(q.number, (versions.get(q.number) ?? 0) + 1);
+  // Parts keep the order they were printed in; "OR" alternatives share a group per part.
+  const key = (q: ExtractedQuestion) => `${q.number}/${normalisePart(q.part)}`;
+  const printed = new Map<string, number>();
+  const versions = new Map<string, number>();
+  for (const q of questions) {
+    if (!printed.has(key(q))) printed.set(key(q), printed.size);
+    versions.set(key(q), (versions.get(key(q)) ?? 0) + 1);
+  }
+  const ordered = [...questions].sort(
+    (a, b) => a.number - b.number || printed.get(key(a))! - printed.get(key(b))! || a.alternative - b.alternative,
+  );
 
   const rows = ordered.map((q, i) => {
-    const hasChoice = versions.get(q.number)! > 1;
+    const hasChoice = versions.get(key(q))! > 1;
+    const part = normalisePart(q.part);
     return {
       section_id: section.id,
       position: i + 1,
-      label: hasChoice && q.alternative > 1 ? `${q.number} (OR ${q.alternative - 1})` : String(q.number),
+      label: questionLabel(q),
       kind: q.kind,
       stem: q.stem,
       marks: q.marks,
-      internal_choice_group: hasChoice ? `q${q.number}` : null,
+      internal_choice_group: hasChoice ? `q${q.number}${part ? `-${part}` : ""}` : null,
       figure: q.figure,
     };
   });

@@ -61,13 +61,15 @@ describe("PaperView", () => {
   const params = Promise.resolve({ id: "p1" });
   const paper = {
     id: "p1", year: 2026, variant: "55/1/1", status: "extracted", subject: "Physics", exam: "CBSE Class 12",
-    sourcePdfPath: "uploads/a.pdf", maxMarks: 70, durationMinutes: 180, flags: [] as string[],
+    sourcePdfPath: "uploads/a.pdf", markingSchemePdfPath: null as string | null, maxMarks: 70, durationMinutes: 180, flags: [] as string[],
     sections: [
       {
         id: "s1", position: 1, title: "Section A", marksCorrect: 1,
         questions: [
-          { id: "q1", position: 1, label: "1", kind: "mcq_single", stem: "Field?", marks: null, figure: { page: 5, caption: "c" }, options: [{ label: "A", body: "10 N/C" }] },
-          { id: "q2", position: 2, label: "2", kind: "descriptive", stem: "Explain", marks: 2, figure: null, options: [] },
+          { id: "q1", position: 1, label: "1", kind: "mcq_single", stem: "Field?", marks: null, figure: { page: 5, caption: "c" }, options: [{ label: "A", body: "10 N/C" }], answer: "A", steps: [] as object[] },
+          { id: "q2", position: 2, label: "2", kind: "descriptive", stem: "Explain", marks: 2, figure: null, options: [], answer: null,
+            steps: [{ n: 1, text: "Lenz's law", marks: 1 }, { n: 2, text: "Direction", marks: 1 }] },
+          { id: "q3", position: 3, label: "3", kind: "descriptive", stem: "Unanswered", marks: 2, figure: null, options: [], answer: null, steps: [] },
         ],
       },
     ],
@@ -81,7 +83,12 @@ describe("PaperView", () => {
     getPaper.mockResolvedValueOnce(paper);
     const { PaperView } = await import("./papers/[id]/paper-view");
     const html = renderToStaticMarkup(await PaperView({ params }));
-    expect(html).toContain("2 questions · 70 marks · 180 minutes");
+    expect(html).toContain("3 questions · 70 marks · 180 minutes");
+    expect(html).toContain("Answer: A");
+    expect(html).toContain("Answer · 2 marking steps");
+    expect(html).toContain("Lenz&#x27;s law");
+    expect(html).toContain("Upload the official marking scheme PDF");
+    expect(html).toContain('href="/api/admin/papers/p1/export"');
     expect(html).toContain("Q1 · mcq_single · 1 marks · diagram on page 5");
     expect(html).toContain("(A) 10 N/C");
     expect(html).toContain("Q2 · descriptive · 2 marks");

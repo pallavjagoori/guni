@@ -4,7 +4,7 @@ import type { ExtractedQuestion, Outline, RunResult } from "./extract";
 
 type Result<T> = { data: T; error: { message: string } | null };
 
-function must<T>({ data, error }: Result<T>): T {
+export function must<T>({ data, error }: Result<T>): T {
   if (error) throw new Error(error.message);
   return data;
 }
@@ -86,9 +86,9 @@ export async function saveSection(db: SupabaseClient, paperId: string, position:
 
 export const FLAG_PREFIX = "Extraction: ";
 
-// Replaces the paper's open extraction flags with the latest check results. Flags from
-// admins or other pipeline steps are left alone.
-export async function flagPaper(db: SupabaseClient, paperId: string, issues: string[]) {
+// Replaces the paper's open flags from one pipeline step (by prefix) with its latest check
+// results. Flags from admins or other steps are left alone.
+export async function flagPaper(db: SupabaseClient, paperId: string, issues: string[], prefix = FLAG_PREFIX) {
   must(
     await db
       .from("review_flags")
@@ -96,13 +96,13 @@ export async function flagPaper(db: SupabaseClient, paperId: string, issues: str
       .eq("entity", "paper")
       .eq("entity_id", paperId)
       .eq("resolved", false)
-      .like("reason", `${FLAG_PREFIX}%`),
+      .like("reason", `${prefix}%`),
   );
   if (issues.length) {
     must(
       await db
         .from("review_flags")
-        .insert(issues.map((issue) => ({ entity: "paper", entity_id: paperId, reason: FLAG_PREFIX + issue }))),
+        .insert(issues.map((issue) => ({ entity: "paper", entity_id: paperId, reason: prefix + issue }))),
     );
   }
 }

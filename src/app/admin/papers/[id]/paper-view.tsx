@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { getPaper } from "@/lib/admin/papers";
 import { requireAdmin } from "@/lib/auth";
 import { ExtractButton } from "./extract-button";
+import { KeysPanel } from "./keys-panel";
 
 export async function PaperView({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
@@ -21,10 +22,16 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
           {paper.exam} {paper.subject} {paper.year} {paper.variant}
         </h1>
         <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <a href={`/api/admin/papers/${paper.id}/export`} className="float-right underline">
+            Download JSON
+          </a>
           Status: {paper.status} · {count} questions · {paper.maxMarks} marks · {paper.durationMinutes} minutes
         </p>
       </header>
       <ExtractButton paperId={paper.id} hasQuestions={count > 0} />
+      {count > 0 && (
+        <KeysPanel paperId={paper.id} sections={paper.sections.length} hasScheme={paper.markingSchemePdfPath !== null} />
+      )}
       {paper.flags.length > 0 && (
         <section className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700 dark:bg-amber-950">
           <h2 className="font-medium">Needs a look</h2>
@@ -55,6 +62,21 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
                     </li>
                   ))}
                 </ol>
+              )}
+              {(q.answer || q.steps.length > 0) && (
+                <details className="mt-2 text-sm">
+                  <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">
+                    Answer{q.answer && `: ${q.answer}`}
+                    {q.steps.length > 0 && ` · ${q.steps.length} marking steps`}
+                  </summary>
+                  <ol className="mt-1 list-decimal pl-5">
+                    {q.steps.map((st) => (
+                      <li key={st.n} className="whitespace-pre-wrap">
+                        {st.text} <span className="text-zinc-500">({st.marks})</span>
+                      </li>
+                    ))}
+                  </ol>
+                </details>
               )}
             </article>
           ))}

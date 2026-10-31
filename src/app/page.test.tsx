@@ -8,5 +8,6 @@ describe("home page", () => {
     expect(html).toContain("CBSE Class 12");
     expect(html).toContain("JEE Main and Advanced");
     expect(html).toContain("NEET");
+    expect(html).toContain('href="/login"');
   });
 });

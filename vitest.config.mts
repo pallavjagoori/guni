@@ -10,7 +10,7 @@ export default defineConfig({
     coverage: {
       provider: "v8",
       include: ["src/**/*.{ts,tsx}"],
-      exclude: ["src/**/*.test.{ts,tsx}"],
+      exclude: ["src/**/*.test.{ts,tsx}", "src/test/**"],
       reporter: ["text", "text-summary"],
       // Every line, branch, function and statement must be tested before a merge.
       thresholds: { lines: 100, branches: 100, functions: 100, statements: 100 },

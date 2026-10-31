@@ -15,7 +15,7 @@ function isSet(read: () => unknown): boolean {
   }
 }
 
-// Reports whether configuration is present and the database answers. Never returns values.
+/** Reports whether configuration is present and the database answers. Never returns values. */
 export async function GET() {
   // Run at request time, never prerendered at build (when no settings exist yet).
   await connection();

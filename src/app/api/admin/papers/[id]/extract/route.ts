@@ -5,8 +5,10 @@ import { PROMPT_VERSION, checkExtraction, extractOutline, extractSection } from 
 import { flagPaper, loadExtraction, logRun, saveOutline, saveSection } from "@/lib/import/save";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// One AI call per request, so each stays well inside the function time limit.
-// The admin page calls: outline, then each section, then check.
+/**
+ * One AI call per request, so each stays well inside the function time limit.
+ * The admin page calls: outline, then each section, then check.
+ */
 export const maxDuration = 300;
 
 const EXTRACTABLE = new Set(["collected", "extracted"]);
@@ -17,6 +19,10 @@ const step = z.discriminatedUnion("step", [
   z.object({ step: z.literal("check") }),
 ]);
 
+/**
+ * Runs one extraction step for a paper: `outline`, `section` (with a position) or `check`.
+ * Admins only. Each AI call is logged with its cost before results are saved.
+ */
 export async function POST(request: Request, ctx: RouteContext<"/api/admin/papers/[id]/extract">) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });

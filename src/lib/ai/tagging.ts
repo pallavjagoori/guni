@@ -3,8 +3,10 @@ import { z } from "zod";
 // Output contract for the tagging job. The model answers with IDs from the closed
 // taxonomy we send it; validateTags() rejects anything outside that list.
 
+/** Bloom's taxonomy levels, lowest to highest. */
 export const BLOOM_LEVELS = ["remember", "understand", "apply", "analyze", "evaluate", "create"] as const;
 
+/** Shape of a tagging answer: taxonomy ids, Bloom level, difficulty 1-5 and confidence 0-1. */
 export const tagResultSchema = z.object({
   chapterId: z.string(),
   topicId: z.string(),
@@ -14,14 +16,21 @@ export const tagResultSchema = z.object({
   confidence: z.number().min(0).max(1),
 });
 
+/** One question's tags. */
 export type TagResult = z.infer<typeof tagResultSchema>;
 
+/** The chapters, topics and concepts a question may be tagged with. */
 export interface Taxonomy {
   chapters: { id: string; topics: { id: string; conceptIds: string[] }[] }[];
 }
 
+/** Result of validateTags. */
 export type TagValidation = { ok: true; tags: TagResult } | { ok: false; errors: string[] };
 
+/**
+ * Checks a tagging answer against its schema and the closed taxonomy.
+ * @returns The tags, or every reason they were rejected.
+ */
 export function validateTags(raw: unknown, taxonomy: Taxonomy): TagValidation {
   const parsed = tagResultSchema.safeParse(raw);
   if (!parsed.success) {

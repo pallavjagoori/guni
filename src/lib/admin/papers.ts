@@ -4,6 +4,7 @@ import { createClient } from "@/lib/supabase/server";
 // Admin reads go through the signed-in user's client, so row level security still
 // requires an admin profile even if a page forgets its check.
 
+/** A paper as shown in the admin list. */
 export interface PaperRow {
   id: string;
   year: number;
@@ -15,6 +16,7 @@ export interface PaperRow {
 
 type Joined = { subjects: { name: string; exams: { name: string } } };
 
+/** Every paper, newest first, for the admin list. */
 export async function listPapers(): Promise<PaperRow[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -29,11 +31,13 @@ export async function listPapers(): Promise<PaperRow[]> {
   }));
 }
 
+/** A subject an admin can import a paper for. */
 export interface SubjectOption {
   id: string;
   label: string;
 }
 
+/** All subjects, labelled with their exam, for the import form. */
 export async function listSubjects(): Promise<SubjectOption[]> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -46,6 +50,7 @@ export async function listSubjects(): Promise<SubjectOption[]> {
     .sort((a, b) => a.label.localeCompare(b.label));
 }
 
+/** A paper with everything the admin paper page shows. */
 export interface PaperDetail extends PaperRow {
   sourcePdfPath: string | null;
   markingSchemePdfPath: string | null;
@@ -94,6 +99,10 @@ type DetailRow = Omit<PaperRow, "subject" | "exam"> &
     }[];
   };
 
+/**
+ * Loads one paper with its sections, questions, options, official answers, marking steps and open flags.
+ * @returns The paper, or null when it doesn't exist.
+ */
 export async function getPaper(id: string): Promise<PaperDetail | null> {
   const supabase = await createClient();
   const { data, error } = await supabase

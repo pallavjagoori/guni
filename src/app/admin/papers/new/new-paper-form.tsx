@@ -8,6 +8,7 @@ import { createPaper, prepareUpload } from "./actions";
 
 const input = "rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900";
 
+/** Form to import a paper: pick subject, year and set, upload the PDF straight to storage, then create the paper. */
 export function NewPaperForm({ subjects }: { subjects: SubjectOption[] }) {
   const router = useRouter();
   const [error, setError] = useState<string>();

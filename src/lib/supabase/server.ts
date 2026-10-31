@@ -4,7 +4,7 @@ import { createClient as createServiceClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
 import { supabasePublicKey, supabaseServiceKey, supabaseUrl } from "./env";
 
-// Acts as the signed-in user: row level security applies.
+/** Acts as the signed-in user: row level security applies. */
 export async function createClient() {
   const cookieStore = await cookies();
   return createServerClient(supabaseUrl(), supabasePublicKey(), {
@@ -23,7 +23,7 @@ export async function createClient() {
   });
 }
 
-// Bypasses row level security. Only for background jobs (content pipeline, rough-work review).
+/** Bypasses row level security. Only for background jobs (content pipeline, rough-work review). */
 export function createAdminClient() {
   return createServiceClient(supabaseUrl(), supabaseServiceKey(), { auth: { persistSession: false } });
 }

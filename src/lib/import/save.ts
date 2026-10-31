@@ -4,24 +4,34 @@ import { normalisePart, type ExtractedQuestion, type Outline, type RunResult } f
 
 type Result<T> = { data: T; error: { message: string } | null };
 
+/**
+ * Unwraps a Supabase result.
+ * @throws The database error, if any.
+ */
 export function must<T>({ data, error }: Result<T>): T {
   if (error) throw new Error(error.message);
   return data;
 }
 
-// The label saveSection writes: "23", "23 (OR 1)", and for case-study parts "29 (III)" and
-// "29 (III) (OR 1)". Also the key that matches a marking-scheme answer to its question.
+/**
+ * The label saveSection writes: "23", "23 (OR 1)", and for case-study parts "29 (III)" and
+ * "29 (III) (OR 1)". Also the key that matches a marking-scheme answer to its question.
+ */
 export function questionLabel(q: { number: number; part: string; alternative: number }) {
   const part = normalisePart(q.part);
   return `${q.number}${part ? ` (${part})` : ""}${q.alternative > 1 ? ` (OR ${q.alternative - 1})` : ""}`;
 }
 
-// Reverses questionLabel. Any other label (edited by hand) becomes question 0, which the checks report.
+/** Reverses questionLabel. Any other label (edited by hand) becomes question 0, which the checks report. */
 export function parseLabel(label: string): { number: number; part: string; alternative: number } {
   const [, number = "0", part = "", or] = /^(\d+)(?: \(([^()\s]+)\))?(?: \(OR (\d+)\))?$/.exec(label) ?? [];
   return { number: Number(number), part, alternative: or ? Number(or) + 1 : 1 };
 }
 
+/**
+ * Records one AI call's model, prompt version, tokens and cost.
+ * @returns The run's id.
+ */
 export async function logRun(db: SupabaseClient, job: string, promptVersion: string, run: RunResult<unknown>) {
   const row = must(
     await db
@@ -41,6 +51,7 @@ export async function logRun(db: SupabaseClient, job: string, promptVersion: str
   return (row as { id: string }).id;
 }
 
+/** Saves the paper's duration and marks and replaces its sections with the outline's. */
 export async function saveOutline(db: SupabaseClient, paperId: string, outline: Outline) {
   must(
     await db
@@ -65,6 +76,7 @@ export async function saveOutline(db: SupabaseClient, paperId: string, outline: 
   );
 }
 
+/** Replaces one section's questions and options with a new transcription, in printed order. */
 export async function saveSection(db: SupabaseClient, paperId: string, position: number, questions: ExtractedQuestion[]) {
   const section = must(
     await db.from("sections").select("id").eq("paper_id", paperId).eq("position", position).single(),
@@ -106,10 +118,13 @@ export async function saveSection(db: SupabaseClient, paperId: string, position:
   if (options.length) must(await db.from("options").insert(options));
 }
 
+/** Prefix of the review flags the extraction check raises. */
 export const FLAG_PREFIX = "Extraction: ";
 
-// Replaces the paper's open flags from one pipeline step (by prefix) with its latest check
-// results. Flags from admins or other steps are left alone.
+/**
+ * Replaces the paper's open flags from one pipeline step (by prefix) with its latest check
+ * results. Flags from admins or other steps are left alone.
+ */
 export async function flagPaper(db: SupabaseClient, paperId: string, issues: string[], prefix = FLAG_PREFIX) {
   must(
     await db
@@ -140,7 +155,7 @@ type StoredSection = {
   questions: { label: string; kind: ExtractedQuestion["kind"]; stem: string; marks: number | null; figure: ExtractedQuestion["figure"]; options: { label: string; body: string }[] }[];
 };
 
-// Reads a paper's saved extraction back in the shape the checks expect.
+/** Reads a paper's saved extraction back in the shape the checks expect. */
 export async function loadExtraction(
   db: SupabaseClient,
   paperId: string,

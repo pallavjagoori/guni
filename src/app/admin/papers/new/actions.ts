@@ -6,8 +6,10 @@ import { requireAdmin } from "@/lib/auth";
 import { UPLOAD_PATH, missingUpload } from "@/lib/admin/uploads";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// PDFs go straight from the browser to storage with a one-time signed URL, because
-// server actions only accept small request bodies.
+/**
+ * PDFs go straight from the browser to storage with a one-time signed URL, because
+ * server actions only accept small request bodies.
+ */
 export async function prepareUpload(): Promise<{ path: string; token: string } | { error: string }> {
   await requireAdmin();
   const path = `uploads/${randomUUID()}.pdf`;
@@ -23,6 +25,10 @@ const newPaper = z.object({
   path: z.string().regex(UPLOAD_PATH),
 });
 
+/**
+ * Creates a paper from an uploaded PDF after checking the upload exists. Removes the file if the insert fails.
+ * @returns The new paper's id, or an error message for the form.
+ */
 export async function createPaper(input: z.input<typeof newPaper>): Promise<{ id: string } | { error: string }> {
   await requireAdmin();
   const parsed = newPaper.safeParse(input);

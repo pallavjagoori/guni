@@ -2,6 +2,7 @@ import "server-only";
 import { redirect } from "next/navigation";
 import { createAdminClient, createClient } from "@/lib/supabase/server";
 
+/** The signed-in user and their app role. */
 export interface CurrentUser {
   id: string;
   email: string;
@@ -9,7 +10,7 @@ export interface CurrentUser {
   role: "student" | "admin";
 }
 
-// The signed-in user, verified from the session token, with their profile. Null when signed out.
+/** The signed-in user, verified from the session token, with their profile. Null when signed out. */
 export async function getCurrentUser(): Promise<CurrentUser | null> {
   const supabase = await createClient();
   const { data } = await supabase.auth.getClaims();
@@ -24,6 +25,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   return { id: claims.sub, email: claims.email ?? "", displayName: profile.display_name, role: profile.role };
 }
 
+/** Returns the signed-in admin, redirecting to /login when signed out and home when not an admin. */
 export async function requireAdmin(): Promise<CurrentUser> {
   const user = await getCurrentUser();
   if (!user) redirect("/login");
@@ -31,7 +33,7 @@ export async function requireAdmin(): Promise<CurrentUser> {
   return user;
 }
 
-// First-run setup is open only until the first admin exists.
+/** First-run setup is open only until the first admin exists. */
 export async function adminExists(): Promise<boolean> {
   const { count, error } = await createAdminClient()
     .from("profiles")

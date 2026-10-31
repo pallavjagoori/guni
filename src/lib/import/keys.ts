@@ -6,9 +6,12 @@ import { z } from "zod";
 import { runPdf, type RunResult } from "./extract";
 import { questionLabel } from "./save";
 
+/** Recorded with every answer-key run, so results can be traced to the prompt that made them. */
 export const KEYS_PROMPT_VERSION = "keys-v3";
+/** Prefix of the review flags the answer-key check raises. */
 export const KEYS_FLAG_PREFIX = "Answer keys: ";
 
+/** Shape of the answers read from a marking scheme. */
 export const keyResultSchema = z.object({
   answers: z.array(
     z.object({
@@ -22,8 +25,10 @@ export const keyResultSchema = z.object({
     }),
   ),
 });
+/** One official answer as read from the marking scheme. */
 export type KeyAnswer = z.infer<typeof keyResultSchema>["answers"][number];
 
+/** A saved question that needs an official answer. */
 export interface KeyTarget {
   id: string;
   label: string;
@@ -50,6 +55,10 @@ Rules:
 
 const preview = (stem: string) => stem.replace(/\s+/g, " ").slice(0, 140);
 
+/**
+ * Reads official answers for these questions from a marking scheme that may cover several sets.
+ * @param setCode - The paper's set, e.g. "55/1/1"; answers for other sets are ignored.
+ */
 export function readKeys(
   client: Anthropic,
   schemePdfBase64: string,
@@ -74,6 +83,10 @@ export function readKeys(
 
 const OBJECTIVE = new Set(["mcq_single", "mcq_multi", "assertion_reason"]);
 
+/**
+ * Checks the official answers against the questions they belong to.
+ * @returns One sentence per problem, for the admin.
+ */
 export function checkKeys(targets: KeyTarget[], answers: KeyAnswer[]): string[] {
   const issues: string[] = [];
   const byKey = new Map(answers.map((a) => [questionLabel(a), a]));

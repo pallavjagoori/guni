@@ -7,6 +7,7 @@ import { prepareUpload } from "../new/actions";
 import { attachMarkingScheme } from "./actions";
 import { postStep } from "./post-step";
 
+/** Lets an admin attach the official marking scheme PDF and read answer keys from it, section by section. */
 export function KeysPanel({
   paperId,
   sections,

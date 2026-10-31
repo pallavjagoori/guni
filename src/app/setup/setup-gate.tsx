@@ -4,6 +4,7 @@ import { adminExists } from "@/lib/auth";
 import { CredentialsForm } from "../login/credentials-form";
 import { createFirstAdmin } from "./actions";
 
+/** Shows the first-admin form only while no admin exists; afterwards points to sign-in. */
 export async function SetupGate() {
   // Decided per request: the answer changes the moment the first admin is created.
   await connection();

@@ -13,8 +13,10 @@ type Row = {
   options: { label: string }[];
 };
 
-// Questions of one section (or every section when position is omitted), as key targets, in
-// printed order: by number, then as saved (which keeps a part's OR alternatives together).
+/**
+ * Questions of one section (or every section when position is omitted), as key targets, in
+ * printed order: by number, then as saved (which keeps a part's OR alternatives together).
+ */
 export async function loadTargets(db: SupabaseClient, paperId: string, position?: number): Promise<KeyTarget[]> {
   let query = db
     .from("sections")
@@ -43,8 +45,10 @@ export async function loadTargets(db: SupabaseClient, paperId: string, position?
 // "(b)" -> "B": the scheme's way of printing a label, normalised to the question's.
 const normalise = (label: string) => label.replace(/[()\s.]/g, "").toUpperCase();
 
-// Replaces the official keys and marking-scheme solutions of these questions. Keys an admin
-// set by hand are kept. Questions whose label can't be matched (number 0) are skipped.
+/**
+ * Replaces the official keys and marking-scheme solutions of these questions. Keys an admin
+ * set by hand are kept. Questions whose label can't be matched (number 0) are skipped.
+ */
 export async function saveKeys(db: SupabaseClient, allTargets: KeyTarget[], answers: KeyAnswer[]) {
   const targets = allTargets.filter((t) => t.number > 0);
   const ids = targets.map((t) => t.id);
@@ -83,7 +87,7 @@ export async function saveKeys(db: SupabaseClient, allTargets: KeyTarget[], answ
   if (solutions.length) must(await db.from("solutions").insert(solutions));
 }
 
-// Saved keys and marking-scheme steps, in the shape checkKeys expects.
+/** Saved keys and marking-scheme steps, in the shape checkKeys expects. */
 export async function loadAnswers(db: SupabaseClient, targets: KeyTarget[]): Promise<KeyAnswer[]> {
   const ids = targets.map((t) => t.id);
   if (ids.length === 0) return [];

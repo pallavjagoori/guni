@@ -12,7 +12,7 @@ const firstAdmin = z.object({
   password: z.string().min(10),
 });
 
-// Creates the first admin account. Closed for good once any admin exists.
+/** Creates the first admin account. Closed for good once any admin exists. */
 export async function createFirstAdmin(_prev: FormState, formData: FormData): Promise<FormState> {
   if (await adminExists()) redirect("/login");
   const parsed = firstAdmin.safeParse({

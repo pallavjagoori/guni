@@ -5,7 +5,7 @@ import type { FormState } from "./actions";
 
 const input = "rounded-md border border-zinc-300 px-3 py-2 dark:border-zinc-700 dark:bg-zinc-900";
 
-// Shared by sign-in and first-run setup.
+/** Shared by sign-in and first-run setup. */
 export function CredentialsForm({
   action,
   submitLabel,

@@ -9,6 +9,11 @@ type Part = { math: false; text: string } | { math: true; tex: string; display: 
 // so prices like "$5 and $10" stay text. \$ is a literal dollar sign.
 const MATH = /\$\$([\s\S]+?)\$\$|\$(?=\S)((?:\\.|[^$\\])+?)(?<=\S)\$(?!\d)/g;
 
+/**
+ * Splits text into plain-text and formula parts.
+ * @param text - Text with $...$ and $$...$$ formulas.
+ * @returns The parts in order; formulas carry their TeX and whether they are displayed.
+ */
 export function splitMath(text: string): Part[] {
   const parts: Part[] = [];
   let last = 0;
@@ -21,6 +26,11 @@ export function splitMath(text: string): Part[] {
   return parts.map((p) => (p.math ? p : { math: false, text: p.text.replace(/\\\$/g, "$") }));
 }
 
+/**
+ * Shows transcribed text with its formulas typeset by KaTeX. Broken formulas show as an error, not a crash.
+ * @param props.children - The stored text.
+ * @param props.inline - Render inside a span (options, steps) instead of a block.
+ */
 export function MathText({ children, inline = false }: { children: string; inline?: boolean }) {
   const Tag = inline ? "span" : "div";
   return (

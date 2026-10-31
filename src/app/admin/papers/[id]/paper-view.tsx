@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { MathText } from "@/components/math-text";
 import { getPaper } from "@/lib/admin/papers";
 import { requireAdmin } from "@/lib/auth";
 import { ExtractButton } from "./extract-button";
@@ -53,12 +54,12 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
                 Q{q.label} · {q.kind} · {q.marks ?? s.marksCorrect} marks
                 {q.figure && ` · diagram on page ${q.figure.page}`}
               </p>
-              <p className="whitespace-pre-wrap">{q.stem}</p>
+              <MathText>{q.stem}</MathText>
               {q.options.length > 0 && (
                 <ol className="mt-2 flex flex-col gap-1 text-sm">
                   {q.options.map((o) => (
                     <li key={o.label}>
-                      ({o.label}) {o.body}
+                      ({o.label}) <MathText inline>{o.body}</MathText>
                     </li>
                   ))}
                 </ol>
@@ -71,8 +72,8 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
                   </summary>
                   <ol className="mt-1 list-decimal pl-5">
                     {q.steps.map((st) => (
-                      <li key={st.n} className="whitespace-pre-wrap">
-                        {st.text} <span className="text-zinc-500">({st.marks})</span>
+                      <li key={st.n}>
+                        <MathText inline>{st.text}</MathText> <span className="text-zinc-500">({st.marks})</span>
                       </li>
                     ))}
                   </ol>

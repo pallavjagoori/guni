@@ -5,7 +5,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { z } from "zod";
 import { runPdf, type RunResult } from "./extract";
 
-export const KEYS_PROMPT_VERSION = "keys-v1";
+export const KEYS_PROMPT_VERSION = "keys-v2";
 export const KEYS_FLAG_PREFIX = "Answer keys: ";
 
 export const keyResultSchema = z.object({
@@ -40,7 +40,7 @@ Rules:
 - For multiple choice and assertion-reason questions, give the option label(s) the scheme accepts, without brackets.
   If the scheme accepts several options or awards marks for any attempt, list every accepted label.
 - For written answers, give each value point as a step with the marks the scheme awards for it.
-  Write formulas in LaTeX between $...$.
+  Write every formula and symbol in LaTeX between $...$ (e.g. $\\frac{hc}{\\lambda}$, $10^{-19}$), never Unicode math characters.
 - A question with "OR" alternatives has a separate answer for each alternative (1 = first version, 2 = after the first OR).`;
 
 const preview = (stem: string) => stem.replace(/\s+/g, " ").slice(0, 140);

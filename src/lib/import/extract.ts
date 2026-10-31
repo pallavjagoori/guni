@@ -6,7 +6,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { MODELS, costUsd, type Usage } from "@/lib/ai/models";
 
-export const PROMPT_VERSION = "extract-v1";
+export const PROMPT_VERSION = "extract-v2";
 
 export const outlineSchema = z.object({
   totalQuestions: z.number().int(),
@@ -32,7 +32,7 @@ export const extractedQuestionSchema = z.object({
   number: z.number().int(), // as printed: 23
   alternative: z.number().int(), // 1 for the first or only version, 2 for the "OR" alternative, ...
   kind: z.enum(questionKinds),
-  stem: z.string(), // Markdown with LaTeX ($...$) for every formula
+  stem: z.string(), // Plain text with LaTeX ($...$) for every formula
   marks: z.number(),
   options: z.array(z.object({ label: z.string(), body: z.string() })),
   figure: z
@@ -49,10 +49,15 @@ export const sectionResultSchema = z.object({ questions: z.array(extractedQuesti
 
 const SYSTEM = `You transcribe exam question papers into structured data for a practice app.
 Rules:
-- Copy text exactly as printed. Never reword, solve, correct or add anything.
+- Copy the wording exactly as printed (symbols follow the LaTeX rule below). Never reword, solve, correct or add anything.
 - When the paper is bilingual, use only the English version.
-- Write every formula, symbol, subscript and fraction in LaTeX between $...$ (e.g. $\\frac{\\mu_0 I}{2\\pi a}$, $10^{-34}$).
-- Keep sub-parts such as (a), (b), (i), (ii) inside the question's stem as Markdown lists.
+- Write every formula, symbol, unit with a power, subscript and fraction in LaTeX between $...$
+  (e.g. $\\frac{\\mu_0 I}{2\\pi a}$, $6.63 \\times 10^{-34}$ J s, $\\varepsilon_0$, $\\Omega$, $5\\sqrt{2}$ V).
+  This applies even where the paper prints a symbol as a plain character: write μ as $\\mu$, × as $\\times$, Ω as $\\Omega$.
+  Never use Unicode math characters or plain-text approximations like "10-34" or "mu0".
+  If the paper prints a literal dollar sign, write it as \\$.
+  Put a displayed equation on its own lines as $$...$$.
+- Keep sub-parts such as (a), (b), (i), (ii) inside the question's stem, each on its own line with its label as printed.
 - A question printed with "OR" between versions is several alternatives with the same number: alternative 1, 2, ...
   An "OR" inside one sub-part of a case study stays in the stem as text instead.
 - Options: give the label without brackets ("A") and the option text. Descriptive questions have no options.

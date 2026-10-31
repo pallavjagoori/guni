@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { checkKeys, readKeys, type KeyAnswer, type KeyTarget } from "./keys";
 
 const target = (number: number, kind: KeyTarget["kind"], extra: Partial<KeyTarget> = {}): KeyTarget => ({
-  id: `q${number}`, number, alternative: 1, kind, marks: 1, stem: "A long   stem\nwith lines", optionLabels: ["A", "B", "C", "D"], ...extra,
+  id: `q${number}`, label: String(number), number, alternative: 1, kind, marks: 1, stem: "A long   stem\nwith lines", optionLabels: ["A", "B", "C", "D"], ...extra,
 });
 const answer = (number: number, extra: Partial<KeyAnswer> = {}): KeyAnswer => ({
   number, alternative: 1, correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
@@ -31,6 +31,12 @@ describe("checkKeys", () => {
     expect(checkKeys([target(1, "assertion_reason")], [answer(1)])).toEqual(["Question 1 has no correct option in the marking scheme."]);
     expect(checkKeys([target(1, "mcq_multi")], [answer(1, { correctLabels: ["A", "E"] })])).toEqual([
       "Question 1's answer names option E, which the question doesn't have.",
+    ]);
+  });
+
+  it("reports questions whose label can't be matched", () => {
+    expect(checkKeys([target(0, "mcq_single", { label: "5a" })], [answer(0, { correctLabels: ["A"] })])).toEqual([
+      'Question labelled "5a" can\'t be matched to the marking scheme.',
     ]);
   });
 

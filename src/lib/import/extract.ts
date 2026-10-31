@@ -92,7 +92,7 @@ export async function runPdf<T>(
     messages: [{ role: "user", content: [pdfBlock(pdfBase64), { type: "text", text: instruction }] }],
   });
   if (response.stop_reason !== "end_turn" || response.parsed_output == null) {
-    throw new Error(`Extraction stopped early (${response.stop_reason})`);
+    throw new Error(`The AI stopped early (${response.stop_reason})`);
   }
   return { data: response.parsed_output as T, model, usage: response.usage, costUsd: costUsd(model, response.usage) };
 }

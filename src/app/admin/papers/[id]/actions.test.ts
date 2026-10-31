@@ -19,7 +19,8 @@ afterEach(() => {
 const { attachMarkingScheme } = await import("./actions");
 const path = "uploads/123e4567-e89b-12d3-a456-426614174000.pdf";
 const input = { paperId: "123e4567-e89b-12d3-a456-426614174001", path };
-const uploaded = (c: Call): Reply => (c.target === "storage:papers" ? { data: [{ name: path.slice(8) }] } : {});
+const uploaded = (c: Call): Reply =>
+  c.target === "storage:papers" ? { data: [{ name: path.slice(8) }] } : { data: [{ id: input.paperId }] };
 
 describe("attachMarkingScheme", () => {
   it("rejects bad input", async () => {
@@ -37,6 +38,11 @@ describe("attachMarkingScheme", () => {
     expect(await attachMarkingScheme(input)).toEqual({ ok: true });
     expect(op(calls[1], "update")!.args[0]).toEqual({ marking_scheme_pdf_path: path });
   });
+  it("reports an unknown paper", async () => {
+    respond = (c) => (c.target === "papers" ? { data: [] } : uploaded(c));
+    expect(await attachMarkingScheme(input)).toEqual({ error: "Paper not found." });
+  });
+
   it("reports update errors", async () => {
     respond = (c) => (c.target === "papers" ? { error: { message: "denied" } } : uploaded(c));
     expect(await attachMarkingScheme(input)).toEqual({ error: "denied" });

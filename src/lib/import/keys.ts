@@ -24,6 +24,7 @@ export type KeyAnswer = z.infer<typeof keyResultSchema>["answers"][number];
 
 export interface KeyTarget {
   id: string;
+  label: string;
   number: number;
   alternative: number;
   kind: "mcq_single" | "mcq_multi" | "assertion_reason" | "numerical" | "descriptive";
@@ -70,6 +71,10 @@ export function checkKeys(targets: KeyTarget[], answers: KeyAnswer[]): string[] 
   const key = (n: number, a: number) => `${n}/${a}`;
   const byKey = new Map(answers.map((a) => [key(a.number, a.alternative), a]));
   for (const t of targets) {
+    if (t.number === 0) {
+      issues.push(`Question labelled "${t.label}" can't be matched to the marking scheme.`);
+      continue;
+    }
     const name = t.alternative > 1 ? `Question ${t.number} (alternative ${t.alternative})` : `Question ${t.number}`;
     const answer = byKey.get(key(t.number, t.alternative));
     if (!answer) {

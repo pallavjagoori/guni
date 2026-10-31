@@ -2,11 +2,12 @@
 
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
+import { UPLOAD_PATH, missingUpload } from "@/lib/admin/uploads";
 import { createAdminClient } from "@/lib/supabase/server";
 
 const input = z.object({
   paperId: z.uuid(),
-  path: z.string().regex(/^uploads\/[0-9a-f-]{36}\.pdf$/),
+  path: z.string().regex(UPLOAD_PATH),
 });
 
 // Links an uploaded marking scheme PDF (see prepareUpload) to its paper.
@@ -17,12 +18,11 @@ export async function attachMarkingScheme(raw: z.input<typeof input>): Promise<{
   const { paperId, path } = parsed.data;
 
   const db = createAdminClient();
-  const name = path.slice("uploads/".length);
-  const { data: files, error: listError } = await db.storage.from("papers").list("uploads", { search: name });
-  if (listError) return { error: listError.message };
-  if (!files.some((f) => f.name === name)) return { error: "The PDF didn't finish uploading. Try again." };
+  const missing = await missingUpload(db, path);
+  if (missing) return { error: missing };
 
-  const { error } = await db.from("papers").update({ marking_scheme_pdf_path: path }).eq("id", paperId);
+  const { data, error } = await db.from("papers").update({ marking_scheme_pdf_path: path }).eq("id", paperId).select("id");
   if (error) return { error: error.message };
+  if (data.length === 0) return { error: "Paper not found." };
   return { ok: true };
 }

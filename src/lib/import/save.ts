@@ -9,6 +9,13 @@ export function must<T>({ data, error }: Result<T>): T {
   return data;
 }
 
+// Reverses the labels saveSection writes: "23" and "23 (OR 1)". Any other label (edited by
+// hand) becomes question 0, which the checks report.
+export function parseLabel(label: string): { number: number; alternative: number } {
+  const [, number = "0", or] = /^(\d+)(?: \(OR (\d+)\))?$/.exec(label) ?? [];
+  return { number: Number(number), alternative: or ? Number(or) + 1 : 1 };
+}
+
 export async function logRun(db: SupabaseClient, job: string, promptVersion: string, run: RunResult<unknown>) {
   const row = must(
     await db
@@ -148,11 +155,8 @@ export async function loadExtraction(
   };
   const questions = sections.flatMap((s) =>
     s.questions.map((q) => {
-      // Labels are written by saveSection; one edited by hand becomes question 0, which the checks report.
-      const [, number = "0", or] = /^(\d+)(?: \(OR (\d+)\))?$/.exec(q.label) ?? [];
       return {
-        number: Number(number),
-        alternative: or ? Number(or) + 1 : 1,
+        ...parseLabel(q.label),
         kind: q.kind,
         stem: q.stem,
         marks: Number(q.marks ?? s.marks_correct),

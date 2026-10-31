@@ -34,6 +34,11 @@ export async function POST(request: Request, ctx: RouteContext<"/api/admin/paper
     return Response.json({ error: "Upload the marking scheme first." }, { status: 409 });
   }
 
+  if (!paper.variant.trim()) {
+    // A scheme usually covers several sets; without the set code the wrong answers could be read.
+    return Response.json({ error: "Set the paper's set code (for example 55/1/1) first." }, { status: 409 });
+  }
+
   try {
     if (parsed.data.step === "check") {
       const targets = await loadTargets(db, id);

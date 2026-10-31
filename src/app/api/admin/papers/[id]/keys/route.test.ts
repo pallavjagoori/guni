@@ -52,8 +52,15 @@ describe("POST keys", () => {
 
   it("needs the paper and its marking scheme", async () => {
     expect((await call({ step: "check" })).status).toBe(404);
-    respond = () => ({ data: { id: "p1", variant: "", marking_scheme_pdf_path: null } });
+    respond = () => ({ data: { id: "p1", variant: "55/1/1", marking_scheme_pdf_path: null } });
     expect((await call({ step: "check" })).status).toBe(409);
+  });
+
+  it("needs the set code, because a scheme covers several sets", async () => {
+    respond = () => ({ data: { id: "p1", variant: " ", marking_scheme_pdf_path: "uploads/ms.pdf" } });
+    const res = await call({ step: "section", position: 1 });
+    expect(res.status).toBe(409);
+    expect((await res.json()).error).toMatch(/set code/);
   });
 
   it("reads one section's answers for the paper's set, logs cost and saves", async () => {

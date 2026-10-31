@@ -9,7 +9,7 @@ const setup = (respond: (c: Call) => Reply = () => ({})) => {
   return { db: db as unknown as SupabaseClient, calls };
 };
 const t = (id: string, number: number, kind: KeyTarget["kind"], alternative = 1): KeyTarget => ({
-  id, number, alternative, kind, marks: 1, stem: "s", optionLabels: ["A", "B"],
+  id, label: String(number), number, alternative, kind, marks: 1, stem: "s", optionLabels: ["A", "B"],
 });
 const a = (number: number, extra: Partial<KeyAnswer> = {}): KeyAnswer => ({
   number, alternative: 1, correctLabels: [], numericalAnswer: null, numericalTolerance: null, steps: [], ...extra,
@@ -30,6 +30,7 @@ describe("loadTargets", () => {
   it("returns every question, ordered by number and alternative", async () => {
     const { db, calls } = setup(() => ({ data: sections }));
     const targets = await loadTargets(db, "p1");
+    expect(targets[0].label).toBe("odd");
     expect(targets.map((x) => [x.id, x.number, x.alternative, x.marks])).toEqual([
       ["qx", 0, 1, 1], ["q1", 1, 1, 1], ["q3", 3, 1, 3], ["q3b", 3, 2, 3],
     ]);
@@ -55,15 +56,17 @@ describe("saveKeys", () => {
     const { db, calls } = setup();
     const targets = [t("q1", 1, "mcq_single"), t("q2", 2, "numerical"), t("q3", 3, "descriptive"), t("q4", 4, "mcq_single"), t("q5", 5, "numerical")];
     await saveKeys(db, targets, [
-      a(1, { correctLabels: ["B", "A", "B"], steps: [{ text: "why", marks: 1 }] }),
+      a(1, { correctLabels: ["(b)", "A", "B", "E"], steps: [{ text: "why", marks: 1 }] }),
       a(2, { numericalAnswer: 2.5, numericalTolerance: null }),
       a(3, { steps: [{ text: "x", marks: 1 }] }),
       a(4),
       a(5, { numericalAnswer: 1, numericalTolerance: 0.1 }),
     ]);
+    expect(op(calls[0], "eq")!.args).toEqual(["source", "official"]);
     expect(op(calls[0], "in")!.args).toEqual(["question_id", ["q1", "q2", "q3", "q4", "q5"]]);
     expect(op(calls[1], "eq")!.args).toEqual(["source", "marking_scheme"]);
-    expect(op(calls[2], "insert")!.args[0]).toEqual([
+    expect(op(calls[2], "upsert")!.args[1]).toEqual({ onConflict: "question_id", ignoreDuplicates: true });
+    expect(op(calls[2], "upsert")!.args[0]).toEqual([
       { question_id: "q1", correct_labels: ["A", "B"], source: "official" },
       { question_id: "q2", numerical_answer: 2.5, numerical_tolerance: 0, source: "official" },
       { question_id: "q5", numerical_answer: 1, numerical_tolerance: 0.1, source: "official" },
@@ -74,9 +77,15 @@ describe("saveKeys", () => {
     ]);
   });
 
+  it("skips questions whose label can't be matched", async () => {
+    const { db, calls } = setup();
+    await saveKeys(db, [t("qx", 0, "mcq_single")], [a(0, { correctLabels: ["A"] })]);
+    expect(calls).toHaveLength(0);
+  });
+
   it("skips inserts when the scheme had nothing usable", async () => {
     const { db, calls } = setup();
-    await saveKeys(db, [t("q1", 1, "mcq_single"), t("q2", 2, "numerical")], [a(2)]);
+    await saveKeys(db, [t("q1", 1, "mcq_single"), t("q2", 2, "numerical"), t("q3", 3, "descriptive")], [a(1, { correctLabels: ["Z"] }), a(2)]);
     expect(calls).toHaveLength(2);
   });
 });

@@ -7,13 +7,22 @@ import { prepareUpload } from "../new/actions";
 import { attachMarkingScheme } from "./actions";
 import { postStep } from "./post-step";
 
-export function KeysPanel({ paperId, sections, hasScheme }: { paperId: string; sections: number; hasScheme: boolean }) {
+export function KeysPanel({
+  paperId,
+  sections,
+  hasScheme,
+}: {
+  paperId: string;
+  sections: number[]; // section positions
+  hasScheme: boolean;
+}) {
   const router = useRouter();
   const [status, setStatus] = useState<string>();
   const [busy, setBusy] = useState(false);
 
   async function upload(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
+    const input = event.target;
+    const file = input.files?.[0];
     if (!file) return;
     setBusy(true);
     try {
@@ -31,6 +40,8 @@ export function KeysPanel({ paperId, sections, hasScheme }: { paperId: string; s
     } catch (e) {
       setStatus(`Stopped: ${(e as Error).message}`);
     }
+    // Lets the same file be chosen again after a failure.
+    input.value = "";
     setBusy(false);
   }
 
@@ -39,8 +50,8 @@ export function KeysPanel({ paperId, sections, hasScheme }: { paperId: string; s
     let cost = 0;
     const url = `/api/admin/papers/${paperId}/keys`;
     try {
-      for (let position = 1; position <= sections; position++) {
-        setStatus(`Reading answers for section ${position} of ${sections}…`);
+      for (const [i, position] of sections.entries()) {
+        setStatus(`Reading answers for section ${i + 1} of ${sections.length}…`);
         cost += (await postStep(url, { step: "section", position })).costUsd;
       }
       setStatus("Checking the answers…");
@@ -62,7 +73,7 @@ export function KeysPanel({ paperId, sections, hasScheme }: { paperId: string; s
         {hasScheme ? "Replace the marking scheme PDF" : "Upload the official marking scheme PDF"}
         <input type="file" accept="application/pdf" onChange={upload} disabled={busy} />
       </label>
-      {hasScheme && sections > 0 && (
+      {hasScheme && sections.length > 0 && (
         <button
           onClick={readKeys}
           disabled={busy}

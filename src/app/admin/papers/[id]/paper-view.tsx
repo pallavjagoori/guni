@@ -30,7 +30,7 @@ export async function PaperView({ params }: { params: Promise<{ id: string }> })
       </header>
       <ExtractButton paperId={paper.id} hasQuestions={count > 0} />
       {count > 0 && (
-        <KeysPanel paperId={paper.id} sections={paper.sections.length} hasScheme={paper.markingSchemePdfPath !== null} />
+        <KeysPanel paperId={paper.id} sections={paper.sections.map((s) => s.position)} hasScheme={paper.markingSchemePdfPath !== null} />
       )}
       {paper.flags.length > 0 && (
         <section className="rounded-md border border-amber-300 bg-amber-50 p-4 text-sm dark:border-amber-700 dark:bg-amber-950">

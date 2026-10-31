@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const select = vi.fn();
+vi.mock("next/server", () => ({ connection: vi.fn(async () => {}) }));
 vi.mock("@/lib/supabase/server", () => ({
   createAdminClient: () => ({ from: () => ({ select }) }),
 }));

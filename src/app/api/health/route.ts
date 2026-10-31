@@ -1,7 +1,6 @@
+import { connection } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
 import { supabasePublicKey, supabaseServiceKey, supabaseUrl } from "@/lib/supabase/env";
-
-export const dynamic = "force-dynamic";
 
 function isSet(read: () => string): boolean {
   try {
@@ -14,6 +13,8 @@ function isSet(read: () => string): boolean {
 
 // Reports whether configuration is present and the database answers. Never returns values.
 export async function GET() {
+  // Run at request time, never prerendered at build (when no settings exist yet).
+  await connection();
   const config = {
     supabaseUrl: isSet(supabaseUrl),
     supabasePublicKey: isSet(supabasePublicKey),

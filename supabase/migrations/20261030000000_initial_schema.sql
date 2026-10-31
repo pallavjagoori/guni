@@ -92,10 +92,6 @@ create table questions (
   stem text not null,                   -- original text, markdown + LaTeX
   marks numeric,                        -- overrides section marks for descriptive questions
   internal_choice_group text,           -- questions sharing a group are OR alternatives
-  numerical_answer numeric,
-  numerical_tolerance numeric default 0,
-  answer_source text not null default 'official'
-    check (answer_source in ('official', 'ai_consensus', 'admin')),
   created_at timestamptz not null default now(),
   unique (section_id, position)
 );
@@ -112,8 +108,17 @@ create table options (
   question_id uuid not null references questions (id) on delete cascade,
   label text not null,                  -- 'A', 'B', ...
   body text not null,
-  is_correct boolean not null default false,
   unique (question_id, label)
+);
+
+-- Answer keys live apart from questions and options so that students, who can read
+-- questions, never see them. Answers are revealed by server code after an attempt.
+create table answer_keys (
+  question_id uuid primary key references questions (id) on delete cascade,
+  correct_labels text[] not null default '{}',   -- objective questions; several for bonus/dropped
+  numerical_answer numeric,
+  numerical_tolerance numeric not null default 0,
+  source text not null default 'official' check (source in ('official', 'ai_consensus', 'admin'))
 );
 
 create table solutions (
@@ -219,9 +224,16 @@ create table diagnostic_options (
   item_id uuid not null references diagnostic_items (id) on delete cascade,
   label text not null,
   body text not null,
-  is_correct boolean not null default false,
-  misconception_id uuid references misconceptions (id),
   unique (item_id, label)
+);
+
+-- Kept apart from diagnostic_options for the same reason as answer_keys: a misconception
+-- on an option gives away that it is wrong.
+create table diagnostic_keys (
+  option_id uuid primary key references diagnostic_options (id) on delete cascade,
+  is_correct boolean not null,
+  misconception_id uuid references misconceptions (id),
+  check (not (is_correct and misconception_id is not null))
 );
 
 -- Which misconception each wrong option of an ORIGINAL objective question signals.
@@ -358,21 +370,33 @@ language sql stable security definer set search_path = public as $$
   select exists (select 1 from profiles where id = auth.uid() and role = 'admin');
 $$;
 
+-- Questions sit in a paper through their section.
+create function question_in_paper(p_question uuid, p_paper uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from questions q join sections s on s.id = q.section_id
+    where q.id = p_question and s.paper_id = p_paper
+  );
+$$;
+
 do $$
 declare t text;
 begin
   foreach t in array array[
     'exams', 'subjects', 'papers', 'sections', 'questions', 'question_assets', 'options',
-    'solutions', 'chapters', 'topics', 'concepts', 'concept_prerequisites', 'misconceptions',
-    'question_tags', 'question_concepts', 'diagnostic_items', 'diagnostic_options',
-    'distractor_mappings'
+    'chapters', 'topics', 'concepts', 'concept_prerequisites', 'misconceptions',
+    'question_tags', 'question_concepts', 'diagnostic_items', 'diagnostic_options'
   ] loop
     execute format('alter table %I enable row level security', t);
     execute format('create policy "%s read" on %I for select to authenticated using (true)', t, t);
     execute format('create policy "%s admin write" on %I for all to authenticated using (is_admin()) with check (is_admin())', t, t);
   end loop;
 
-  foreach t in array array['ai_runs', 'review_flags', 'pipeline_jobs', 'audit_log'] loop
+  -- Answer keys, solutions and distractor mappings give answers away, so students never read them.
+  foreach t in array array[
+    'answer_keys', 'diagnostic_keys', 'solutions', 'distractor_mappings',
+    'ai_runs', 'review_flags', 'pipeline_jobs', 'audit_log'
+  ] loop
     execute format('alter table %I enable row level security', t);
     execute format('create policy "%s admin only" on %I for all to authenticated using (is_admin()) with check (is_admin())', t, t);
   end loop;
@@ -382,24 +406,114 @@ alter table profiles enable row level security;
 create policy "profiles self read" on profiles for select to authenticated using (id = auth.uid() or is_admin());
 create policy "profiles admin write" on profiles for all to authenticated using (is_admin()) with check (is_admin());
 
+-- Every new login gets a student profile; admins are promoted by hand.
+create function handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+begin
+  insert into profiles (id, display_name)
+  values (new.id, coalesce(
+    nullif(trim(new.raw_user_meta_data ->> 'display_name'), ''),
+    nullif(split_part(new.email, '@', 1), ''),
+    'Student'
+  ));
+  return new;
+end $$;
+
+create trigger on_auth_user_created after insert on auth.users
+  for each row execute function handle_new_user();
+
+-- Students choose their own tracks.
+alter table students_enrollments enable row level security;
+create policy "enrollments own read" on students_enrollments for select to authenticated
+  using (student_id = auth.uid() or is_admin());
+create policy "enrollments own insert" on students_enrollments for insert to authenticated
+  with check (student_id = auth.uid() or is_admin());
+create policy "enrollments own delete" on students_enrollments for delete to authenticated
+  using (student_id = auth.uid() or is_admin());
+
+-- Students may start an attempt but never set its score or submission time; the server does.
+alter table attempts enable row level security;
+create policy "attempts own read" on attempts for select to authenticated
+  using (student_id = auth.uid() or is_admin());
+create function paper_is_ready(p_paper uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (select 1 from papers where id = p_paper and status = 'ready');
+$$;
+
+create policy "attempts own start" on attempts for insert to authenticated
+  with check (
+    student_id = auth.uid()
+    and submitted_at is null
+    and paper_score is null
+    and not paper_score_estimated
+    and started_at between now() - interval '1 minute' and now() + interval '1 minute'
+    and paper_is_ready(paper_id)
+  );
+create policy "attempts admin write" on attempts for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Learning model rows are computed by the server; students only read their own.
 do $$
 declare t text;
 begin
-  foreach t in array array['students_enrollments', 'attempts', 'mastery', 'mastery_events', 'recommendations'] loop
+  foreach t in array array['mastery', 'mastery_events', 'recommendations'] loop
     execute format('alter table %I enable row level security', t);
-    execute format('create policy "%s own" on %I for all to authenticated using (student_id = auth.uid() or is_admin()) with check (student_id = auth.uid() or is_admin())', t, t);
+    execute format('create policy "%s own read" on %I for select to authenticated using (student_id = auth.uid() or is_admin())', t, t);
+    execute format('create policy "%s admin write" on %I for all to authenticated using (is_admin()) with check (is_admin())', t, t);
   end loop;
 end $$;
 
+-- Answers can be saved only on the student's own open attempt, for questions of that paper.
+create function can_answer(p_attempt uuid, p_question uuid, p_item uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from attempts a
+    where a.id = p_attempt
+      and a.student_id = auth.uid()
+      and a.submitted_at is null
+      and question_in_paper(
+        coalesce(p_question, (select d.source_question_id from diagnostic_items d where d.id = p_item)),
+        a.paper_id
+      )
+  );
+$$;
+
 alter table responses enable row level security;
-create policy "responses own" on responses for all to authenticated
-  using (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())))
-  with check (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())));
+create policy "responses own read" on responses for select to authenticated
+  using (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())));
+create policy "responses own insert" on responses for insert to authenticated
+  with check (can_answer(attempt_id, question_id, diagnostic_item_id));
+create policy "responses own update" on responses for update to authenticated
+  using (can_answer(attempt_id, question_id, diagnostic_item_id))
+  with check (can_answer(attempt_id, question_id, diagnostic_item_id));
+create policy "responses admin write" on responses for all to authenticated
+  using (is_admin()) with check (is_admin());
+
+-- Rough-work photos: own attempt, a question of that paper, a single file directly in the
+-- student's own folder, and only until 30 minutes after submission. Solutions must not be
+-- revealed to the student before that window closes.
+create function rough_work_open(p_attempt uuid) returns boolean
+language sql stable security definer set search_path = public as $$
+  select exists (
+    select 1 from attempts a
+    where a.id = p_attempt
+      and a.student_id = auth.uid()
+      and (a.submitted_at is null or now() < a.submitted_at + interval '30 minutes')
+  );
+$$;
 
 alter table uploads enable row level security;
-create policy "uploads own" on uploads for all to authenticated
-  using (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())))
-  with check (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())));
+create policy "uploads own read" on uploads for select to authenticated
+  using (exists (select 1 from attempts a where a.id = attempt_id and (a.student_id = auth.uid() or is_admin())));
+create policy "uploads own insert" on uploads for insert to authenticated
+  with check (
+    storage_path ~ ('^' || auth.uid()::text || '/[A-Za-z0-9_-][A-Za-z0-9._-]*$')
+    and storage_path not like '%..%'
+    and rough_work_open(attempt_id)
+    and exists (select 1 from attempts a where a.id = attempt_id and question_in_paper(question_id, a.paper_id))
+  );
+create policy "uploads admin write" on uploads for all to authenticated
+  using (is_admin()) with check (is_admin());
 
 -- Step reviews are written by the server (service role); students can only read their own.
 alter table step_reviews enable row level security;
@@ -428,6 +542,11 @@ create policy "question assets read" on storage.objects for select to authentica
 create policy "question assets admin write" on storage.objects for all to authenticated
   using (bucket_id = 'question-assets' and is_admin()) with check (bucket_id = 'question-assets' and is_admin());
 
-create policy "rough work own" on storage.objects for all to authenticated
-  using (bucket_id = 'rough-work' and ((storage.foldername(name))[1] = auth.uid()::text or is_admin()))
-  with check (bucket_id = 'rough-work' and ((storage.foldername(name))[1] = auth.uid()::text or is_admin()));
+-- Students can add photos to their own folder and read them, but never overwrite or delete
+-- one, so a photo cannot be swapped after answers are revealed.
+create policy "rough work own read" on storage.objects for select to authenticated
+  using (bucket_id = 'rough-work' and ((storage.foldername(name))[1] = auth.uid()::text or is_admin()));
+create policy "rough work own add" on storage.objects for insert to authenticated
+  with check (bucket_id = 'rough-work' and (storage.foldername(name))[1] = auth.uid()::text);
+create policy "rough work admin" on storage.objects for all to authenticated
+  using (bucket_id = 'rough-work' and is_admin()) with check (bucket_id = 'rough-work' and is_admin());

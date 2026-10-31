@@ -33,9 +33,8 @@ jobs:
       PGPASSWORD: postgres
     steps:
       - uses: actions/checkout@v4
-      - name: Apply migrations and seeds on top of Supabase stubs
+      - name: Apply migrations and seeds on top of Supabase stubs, then run privacy checks
         run: |
-          psql -h localhost -U postgres -v ON_ERROR_STOP=1 -f supabase/test/supabase_stubs.sql
-          for f in supabase/migrations/*.sql supabase/seed/*.sql; do
+          for f in supabase/test/supabase_stubs.sql supabase/migrations/*.sql supabase/seed/*.sql supabase/test/rls_test.sql; do
             psql -h localhost -U postgres -v ON_ERROR_STOP=1 -q -f "$f"
           done

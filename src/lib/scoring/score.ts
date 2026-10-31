@@ -9,6 +9,7 @@ export type QuestionKind =
 
 export interface SectionRules {
   id: string;
+  position: number; // order in the paper
   marksCorrect: number;
   marksWrong: number; // negative for JEE/NEET, e.g. -1
   marksUnattempted: number;
@@ -36,7 +37,9 @@ export interface ResponseInput {
   adminOverrideMarks?: number | null;
 }
 
-export type Outcome = "correct" | "partial" | "wrong" | "unattempted" | "not_counted";
+// "no_key": the answer key is missing (pending or dropped), so the question earns 0
+// and is listed for an admin instead of failing the whole paper.
+export type Outcome = "correct" | "partial" | "wrong" | "unattempted" | "not_counted" | "no_key";
 
 export interface QuestionResult {
   questionId: string;
@@ -63,6 +66,12 @@ function isAttempted(q: ScorableQuestion, r: ResponseInput | undefined): boolean
   }
 }
 
+function hasKey(q: ScorableQuestion): boolean {
+  return q.kind === "numerical"
+    ? q.numericalAnswer !== null && q.numericalAnswer !== undefined
+    : (q.correctLabels?.length ?? 0) > 0;
+}
+
 export function scoreQuestion(
   q: ScorableQuestion,
   section: SectionRules,
@@ -74,11 +83,15 @@ export function scoreQuestion(
   if (!isAttempted(q, r)) {
     return { ...base, outcome: "unattempted", marks: section.marksUnattempted };
   }
+  // Never guess when a key is missing: a pending key must not cost students marks.
+  if (q.kind !== "descriptive" && !hasKey(q)) {
+    return { ...base, outcome: "no_key", marks: 0 };
+  }
 
   switch (q.kind) {
     case "mcq_single":
     case "assertion_reason": {
-      const correct = q.correctLabels ?? [];
+      const correct = q.correctLabels!;
       const selected = r!.selectedLabels!;
       // Some official keys accept more than one option (bonus/dropped questions).
       const ok = selected.length === 1 && correct.includes(selected[0]);
@@ -90,7 +103,7 @@ export function scoreQuestion(
     case "mcq_multi": {
       // JEE Advanced partial marking: full marks if exactly the correct set is chosen,
       // +1 per correct option if only correct options are chosen, otherwise negative.
-      const correct = new Set(q.correctLabels ?? []);
+      const correct = new Set(q.correctLabels!);
       const selected = new Set(r!.selectedLabels!);
       const anyWrong = [...selected].some((l) => !correct.has(l));
       if (anyWrong) return { ...base, outcome: "wrong", marks: section.marksWrong };
@@ -99,10 +112,7 @@ export function scoreQuestion(
     }
 
     case "numerical": {
-      const answer = q.numericalAnswer;
-      if (answer === null || answer === undefined) {
-        throw new Error(`Question ${q.id} has no numerical answer`);
-      }
+      const answer = q.numericalAnswer!;
       const tol = q.numericalTolerance ?? 0;
       const ok = Math.abs(r!.numericalValue! - answer) <= tol + 1e-9;
       return ok
@@ -127,30 +137,23 @@ export function scorePaper(
 ): PaperResult {
   const sectionById = new Map(sections.map((s) => [s.id, s]));
   const responseById = new Map(responses.map((r) => [r.questionId, r]));
-  const ordered = [...questions].sort((a, b) =>
-    a.sectionId === b.sectionId ? a.position - b.position : a.sectionId.localeCompare(b.sectionId),
+  for (const q of questions) {
+    if (!sectionById.has(q.sectionId)) {
+      throw new Error(`Question ${q.id} references unknown section ${q.sectionId}`);
+    }
+  }
+  const sectionOf = (q: ScorableQuestion) => sectionById.get(q.sectionId)!;
+  const ordered = [...questions].sort(
+    (a, b) => sectionOf(a).position - sectionOf(b).position || a.position - b.position,
   );
 
   const results = new Map<string, QuestionResult>();
-  const attemptedInSection = new Map<string, number>();
+  for (const q of ordered) results.set(q.id, scoreQuestion(q, sectionOf(q), responseById.get(q.id)));
 
-  for (const q of ordered) {
-    const section = sectionById.get(q.sectionId);
-    if (!section) throw new Error(`Question ${q.id} references unknown section ${q.sectionId}`);
-    const r = responseById.get(q.id);
-    let result = scoreQuestion(q, section, r);
+  const notCounted = (id: string): QuestionResult => ({ questionId: id, outcome: "not_counted", marks: 0, estimated: false });
 
-    if (section.attemptLimit != null && result.outcome !== "unattempted") {
-      const n = (attemptedInSection.get(section.id) ?? 0) + 1;
-      attemptedInSection.set(section.id, n);
-      if (n > section.attemptLimit) {
-        result = { questionId: q.id, outcome: "not_counted", marks: 0, estimated: false };
-      }
-    }
-    results.set(q.id, result);
-  }
-
-  // CBSE internal choice: within an OR group only the best-scoring alternative counts.
+  // CBSE internal choice: an OR group counts once. Keep the best attempted alternative
+  // (the first one on a tie); if none was attempted, keep the first as unattempted.
   const groups = new Map<string, ScorableQuestion[]>();
   for (const q of ordered) {
     if (q.internalChoiceGroup) {
@@ -159,16 +162,26 @@ export function scorePaper(
     }
   }
   for (const members of groups.values()) {
-    const best = members.reduce((a, b) => (results.get(b.id)!.marks > results.get(a.id)!.marks ? b : a));
-    for (const m of members) {
-      if (m.id !== best.id) {
-        results.set(m.id, { questionId: m.id, outcome: "not_counted", marks: 0, estimated: false });
-      }
-    }
+    const attempted = members.filter((m) => results.get(m.id)!.outcome !== "unattempted");
+    const keep = attempted.length
+      ? attempted.reduce((a, b) => (results.get(b.id)!.marks > results.get(a.id)!.marks ? b : a))
+      : members[0];
+    for (const m of members) if (m.id !== keep.id) results.set(m.id, notCounted(m.id));
+  }
+
+  // "Attempt any N": only the first N attempted questions count, after OR groups collapse.
+  const attemptedInSection = new Map<string, number>();
+  for (const q of ordered) {
+    const limit = sectionOf(q).attemptLimit;
+    const outcome = results.get(q.id)!.outcome;
+    if (limit == null || outcome === "unattempted" || outcome === "not_counted") continue;
+    const n = (attemptedInSection.get(q.sectionId) ?? 0) + 1;
+    attemptedInSection.set(q.sectionId, n);
+    if (n > limit) results.set(q.id, notCounted(q.id));
   }
 
   const list = ordered.map((q) => results.get(q.id)!);
   const total = list.reduce((sum, r) => sum + r.marks, 0);
-  const estimated = list.some((r) => r.estimated && r.outcome !== "not_counted");
+  const estimated = list.some((r) => r.estimated);
   return { total, estimated, questions: list };
 }

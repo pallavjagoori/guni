@@ -16,7 +16,7 @@ export async function createClient() {
         try {
           for (const { name, value, options } of cookiesToSet) cookieStore.set(name, value, options);
         } catch {
-          // Called from a Server Component, where cookies are read-only. The proxy refreshes sessions.
+          // Called from a Server Component, where cookies are read-only. src/proxy.ts refreshes sessions.
         }
       },
     },

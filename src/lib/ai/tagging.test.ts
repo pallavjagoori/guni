@@ -22,6 +22,12 @@ describe("validateTags", () => {
   it("rejects an invented chapter", () => {
     expect(validateTags({ ...good, chapterId: "made-up" }, taxonomy)).toEqual({ ok: false, errors: ["unknown chapter made-up"] });
   });
+  it("rejects a topic from another chapter", () => {
+    expect(validateTags({ ...good, topicId: "t9" }, taxonomy)).toEqual({
+      ok: false,
+      errors: ["topic t9 is not in chapter ch1"],
+    });
+  });
   it("rejects a concept from outside the chapter", () => {
     const r = validateTags({ ...good, conceptIds: ["c9"] }, taxonomy);
     expect(r.ok).toBe(false);

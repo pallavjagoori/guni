@@ -52,5 +52,6 @@ describe("proxy", () => {
     expect(re.test("/exam/123")).toBe(true);
     expect(re.test("/_next/static/chunk.js")).toBe(false);
     expect(re.test("/logo.png")).toBe(false);
+    expect(re.test("/api/health")).toBe(false);
   });
 });

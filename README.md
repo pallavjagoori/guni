@@ -14,15 +14,15 @@ see which NCERT concepts to revise.
 
 - Questions come only from PYQs. AI adds metadata, diagnostic MCQs and reviews, stored separately
   from the originals with model, prompt version and confidence.
-- AI picks from a closed taxonomy (`supabase/seed/`); `src/lib/ai/tagging.ts` rejects anything else.
+- AI picks from a closed taxonomy (loaded by migrations); `src/lib/ai/tagging.ts` rejects anything else.
 - Scoring and mastery are plain code (`src/lib/scoring/`), so the same answers always give the same result.
 
 ## Layout
 
 | Path | What |
 | --- | --- |
-| `supabase/migrations/` | Database schema and row level security |
-| `supabase/seed/` | Taxonomies (chapters, topics, concepts) |
+| `supabase/migrations/` | Schema, row level security and taxonomies; applied to production on merge |
+| `supabase/test/` | Privacy (row level security) checks run in CI |
 | `src/lib/scoring/` | Paper scoring for CBSE, JEE Main/Advanced, NEET |
 | `src/lib/ai/` | AI output contracts and validation |
 | `src/lib/supabase/` | Browser and server clients |
@@ -35,3 +35,10 @@ cp .env.example .env.local   # fill in from Vercel → Settings → Environment 
 npm run dev
 npm test
 ```
+
+## Database changes
+
+Add a new timestamped file to `supabase/migrations/` (never edit one that has been merged).
+CI applies every migration to a fresh Postgres and runs `supabase/test/rls_test.sql`; after
+merge, the *Migrate database* workflow pushes new migrations to production using the
+`SUPABASE_DB_URL` repository secret.

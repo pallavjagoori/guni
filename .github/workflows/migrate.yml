@@ -1,0 +1,36 @@
+name: Migrate database
+
+# Applies new files in supabase/migrations to the production database once CI passes on main
+# (CI applies them to a scratch Postgres first). The Supabase CLI records applied migrations,
+# so each runs exactly once and a run with nothing new does nothing.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: migrate
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+      - name: Check the database secret is set
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::Add the SUPABASE_DB_URL repository secret (Vercel → Storage → SUPABASE_POSTGRES_URL_NON_POOLING)."
+            exit 1
+          fi
+      - name: Push migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: npx -y supabase@2.122.0 db push --db-url "$SUPABASE_DB_URL" --yes

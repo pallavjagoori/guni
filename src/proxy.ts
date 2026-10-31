@@ -26,6 +26,8 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
+// Static assets and the health check skip the proxy; the health check must still answer
+// when Supabase settings are missing, which is what it reports on.
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

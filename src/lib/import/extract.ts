@@ -74,8 +74,10 @@ export interface RunResult<T> {
   costUsd: number;
 }
 
-async function run<T>(
+// One structured-output call over a PDF. Shared by extraction and answer-key reading.
+export async function runPdf<T>(
   client: Anthropic,
+  system: string,
   pdfBase64: string,
   instruction: string,
   schema: z.ZodType<T>,
@@ -84,20 +86,21 @@ async function run<T>(
   const response = await client.messages.parse({
     model,
     max_tokens: 16000,
-    system: SYSTEM,
+    system,
     // Transcription needs care, not deep reasoning.
     output_config: { effort: "low", format: zodOutputFormat(schema) },
     messages: [{ role: "user", content: [pdfBlock(pdfBase64), { type: "text", text: instruction }] }],
   });
   if (response.stop_reason !== "end_turn" || response.parsed_output == null) {
-    throw new Error(`Extraction stopped early (${response.stop_reason})`);
+    throw new Error(`The AI stopped early (${response.stop_reason})`);
   }
   return { data: response.parsed_output as T, model, usage: response.usage, costUsd: costUsd(model, response.usage) };
 }
 
 export function extractOutline(client: Anthropic, pdfBase64: string): Promise<RunResult<Outline>> {
-  return run(
+  return runPdf(
     client,
+    SYSTEM,
     pdfBase64,
     "Read the general instructions and give the paper's outline: total questions, maximum marks, duration, and each section with its question range, marks per question and whether its questions are objective (answered by choosing options).",
     outlineSchema,
@@ -109,8 +112,9 @@ export function extractSection(
   pdfBase64: string,
   section: OutlineSection,
 ): Promise<RunResult<z.infer<typeof sectionResultSchema>>> {
-  return run(
+  return runPdf(
     client,
+    SYSTEM,
     pdfBase64,
     `Transcribe ${section.title}: questions ${section.firstQuestion} to ${section.lastQuestion}, every alternative of each.`,
     sectionResultSchema,

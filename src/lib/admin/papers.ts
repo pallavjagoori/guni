@@ -48,6 +48,7 @@ export async function listSubjects(): Promise<SubjectOption[]> {
 
 export interface PaperDetail extends PaperRow {
   sourcePdfPath: string | null;
+  markingSchemePdfPath: string | null;
   maxMarks: number;
   durationMinutes: number;
   sections: {
@@ -64,14 +65,24 @@ export interface PaperDetail extends PaperRow {
       marks: number | null;
       figure: { page: number; caption: string } | null;
       options: { label: string; body: string }[];
+      answer: string | null; // official key: "B", "A, C" or a number
+      steps: { n: number; text: string; marks: number }[]; // marking-scheme value points
     }[];
   }[];
   flags: string[];
 }
 
+type KeyRow = { correct_labels: string[]; numerical_answer: number | null };
+type StoredQuestion = Omit<PaperDetail["sections"][number]["questions"][number], "answer" | "steps"> & {
+  // One-to-one embeds come back as an object; be tolerant of an array too.
+  answer_keys: KeyRow | KeyRow[] | null;
+  solutions: { source: string; steps: { n: number; text: string; marks: number }[] }[];
+};
+
 type DetailRow = Omit<PaperRow, "subject" | "exam"> &
   Joined & {
     source_pdf_path: string | null;
+    marking_scheme_pdf_path: string | null;
     max_marks: number;
     duration_minutes: number;
     sections: {
@@ -79,7 +90,7 @@ type DetailRow = Omit<PaperRow, "subject" | "exam"> &
       position: number;
       title: string;
       marks_correct: number;
-      questions: (PaperDetail["sections"][number]["questions"][number] & { options: { label: string; body: string }[] })[];
+      questions: StoredQuestion[];
     }[];
   };
 
@@ -88,10 +99,11 @@ export async function getPaper(id: string): Promise<PaperDetail | null> {
   const { data, error } = await supabase
     .from("papers")
     .select(
-      `id, year, variant, status, source_pdf_path, max_marks, duration_minutes,
+      `id, year, variant, status, source_pdf_path, marking_scheme_pdf_path, max_marks, duration_minutes,
        subjects!inner(name, exams!inner(name)),
        sections(id, position, title, marks_correct,
-         questions(id, position, label, kind, stem, marks, figure, options(label, body)))`,
+         questions(id, position, label, kind, stem, marks, figure, options(label, body),
+           answer_keys(correct_labels, numerical_answer), solutions(source, steps)))`,
     )
     .eq("id", id)
     .maybeSingle();
@@ -116,6 +128,7 @@ export async function getPaper(id: string): Promise<PaperDetail | null> {
     subject: row.subjects.name,
     exam: row.subjects.exams.name,
     sourcePdfPath: row.source_pdf_path,
+    markingSchemePdfPath: row.marking_scheme_pdf_path,
     maxMarks: row.max_marks,
     durationMinutes: row.duration_minutes,
     sections: [...row.sections].sort(byPosition).map((s) => ({
@@ -123,11 +136,19 @@ export async function getPaper(id: string): Promise<PaperDetail | null> {
       position: s.position,
       title: s.title,
       marksCorrect: s.marks_correct,
-      questions: [...s.questions].sort(byPosition).map((q) => ({
+      questions: [...s.questions].sort(byPosition).map(({ answer_keys, solutions, ...q }) => ({
         ...q,
         options: [...q.options].sort((a, b) => a.label.localeCompare(b.label)),
+        answer: formatKey(Array.isArray(answer_keys) ? answer_keys[0] : answer_keys),
+        steps: solutions.find((x) => x.source === "marking_scheme")?.steps ?? [],
       })),
     })),
     flags: (flags as { reason: string }[]).map((f) => f.reason),
   };
+}
+
+function formatKey(key: KeyRow | null | undefined): string | null {
+  if (!key) return null;
+  if (key.numerical_answer != null) return String(key.numerical_answer);
+  return key.correct_labels.length ? key.correct_labels.join(", ") : null;
 }

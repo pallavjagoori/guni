@@ -2,18 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { postStep } from "./post-step";
 
-async function call(paperId: string, body: object) {
-  const res = await fetch(`/api/admin/papers/${paperId}/extract`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  // A platform timeout returns an HTML page, not JSON.
-  const json = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(json.error ?? `Request failed (${res.status})`);
-  return json;
-}
+const call = (paperId: string, body: object) => postStep(`/api/admin/papers/${paperId}/extract`, body);
 
 export function ExtractButton({ paperId, hasQuestions }: { paperId: string; hasQuestions: boolean }) {
   const router = useRouter();

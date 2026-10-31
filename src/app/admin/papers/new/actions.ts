@@ -3,6 +3,7 @@
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import { requireAdmin } from "@/lib/auth";
+import { UPLOAD_PATH, missingUpload } from "@/lib/admin/uploads";
 import { createAdminClient } from "@/lib/supabase/server";
 
 // PDFs go straight from the browser to storage with a one-time signed URL, because
@@ -19,7 +20,7 @@ const newPaper = z.object({
   subjectId: z.uuid(),
   year: z.number().int().min(2000).max(2100),
   variant: z.string().trim().max(60),
-  path: z.string().regex(/^uploads\/[0-9a-f-]{36}\.pdf$/),
+  path: z.string().regex(UPLOAD_PATH),
 });
 
 export async function createPaper(input: z.input<typeof newPaper>): Promise<{ id: string } | { error: string }> {
@@ -29,10 +30,8 @@ export async function createPaper(input: z.input<typeof newPaper>): Promise<{ id
   const { subjectId, year, variant, path } = parsed.data;
 
   const db = createAdminClient();
-  const name = path.slice("uploads/".length);
-  const { data: files, error: listError } = await db.storage.from("papers").list("uploads", { search: name });
-  if (listError) return { error: listError.message };
-  if (!files.some((f) => f.name === name)) return { error: "The PDF didn't finish uploading. Try again." };
+  const missing = await missingUpload(db, path);
+  if (missing) return { error: missing };
 
   // Duration and marks are placeholders until extraction reads them from the paper.
   const { data, error } = await db

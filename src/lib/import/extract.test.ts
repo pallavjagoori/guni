@@ -108,11 +108,11 @@ describe("extraction calls", () => {
 
   it("fails when the answer was cut off", async () => {
     const { client } = fakeClient({ stop_reason: "max_tokens", parsed_output: null, usage });
-    await expect(extractOutline(client, "UERG")).rejects.toThrow(/stopped early \(max_tokens\)/);
+    await expect(extractOutline(client, "UERG")).rejects.toThrow(/The AI stopped early \(max_tokens\)/);
   });
 
   it("fails when nothing could be parsed", async () => {
     const { client } = fakeClient({ stop_reason: "end_turn", parsed_output: null, usage });
-    await expect(extractOutline(client, "UERG")).rejects.toThrow(/stopped early \(end_turn\)/);
+    await expect(extractOutline(client, "UERG")).rejects.toThrow(/The AI stopped early \(end_turn\)/);
   });
 });

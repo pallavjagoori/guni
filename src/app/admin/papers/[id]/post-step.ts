@@ -1,4 +1,4 @@
-// Calls one pipeline step on the server and returns its JSON, or throws with the server's message.
+/** Calls one pipeline step on the server and returns its JSON, or throws with the server's message. */
 export async function postStep(url: string, body: object) {
   const res = await fetch(url, {
     method: "POST",

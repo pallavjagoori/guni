@@ -1,5 +1,6 @@
 // Deterministic paper scoring. No AI here: the same responses always give the same score.
 
+/** How a question is answered and scored. */
 export type QuestionKind =
   | "mcq_single"
   | "mcq_multi"
@@ -7,6 +8,7 @@ export type QuestionKind =
   | "numerical"
   | "descriptive";
 
+/** How a section awards marks. */
 export interface SectionRules {
   id: string;
   position: number; // order in the paper
@@ -16,6 +18,7 @@ export interface SectionRules {
   attemptLimit?: number | null; // "attempt any N": only the first N attempted questions count
 }
 
+/** A question with what scoring needs: its key and how it is marked. */
 export interface ScorableQuestion {
   id: string;
   sectionId: string;
@@ -28,6 +31,7 @@ export interface ScorableQuestion {
   internalChoiceGroup?: string | null; // CBSE "OR" alternatives: only the best one counts
 }
 
+/** A student's answer to one question. */
 export interface ResponseInput {
   questionId: string;
   selectedLabels?: string[];
@@ -37,10 +41,13 @@ export interface ResponseInput {
   adminOverrideMarks?: number | null;
 }
 
-// "no_key": the answer key is missing (pending or dropped), so the question earns 0
-// and is listed for an admin instead of failing the whole paper.
+/**
+ * "no_key": the answer key is missing (pending or dropped), so the question earns 0
+ * and is listed for an admin instead of failing the whole paper.
+ */
 export type Outcome = "correct" | "partial" | "wrong" | "unattempted" | "not_counted" | "no_key";
 
+/** One question's outcome and marks. */
 export interface QuestionResult {
   questionId: string;
   outcome: Outcome;
@@ -48,6 +55,7 @@ export interface QuestionResult {
   estimated: boolean;
 }
 
+/** A scored attempt. */
 export interface PaperResult {
   total: number;
   estimated: boolean; // true if any counted marks are AI estimates
@@ -72,6 +80,7 @@ function hasKey(q: ScorableQuestion): boolean {
     : (q.correctLabels?.length ?? 0) > 0;
 }
 
+/** Scores one question under its section's rules. Questions without a key earn 0 and are reported as no_key. */
 export function scoreQuestion(
   q: ScorableQuestion,
   section: SectionRules,
@@ -130,6 +139,10 @@ export function scoreQuestion(
   }
 }
 
+/**
+ * Scores a whole attempt: applies each section's rules, counts an OR group once (its best alternative)
+ * and respects "attempt any N" limits.
+ */
 export function scorePaper(
   sections: SectionRules[],
   questions: ScorableQuestion[],

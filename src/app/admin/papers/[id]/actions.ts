@@ -10,7 +10,7 @@ const input = z.object({
   path: z.string().regex(UPLOAD_PATH),
 });
 
-// Links an uploaded marking scheme PDF (see prepareUpload) to its paper.
+/** Links an uploaded marking scheme PDF (see prepareUpload) to its paper. */
 export async function attachMarkingScheme(raw: z.input<typeof input>): Promise<{ ok: true } | { error: string }> {
   await requireAdmin();
   const parsed = input.safeParse(raw);

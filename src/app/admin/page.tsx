@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { PaperList } from "./paper-list";
 
+/** Admin home: the list of imported papers and a link to import a new one. */
 export default function AdminPage() {
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-10">

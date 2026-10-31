@@ -2,8 +2,10 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabasePublicKey, supabaseUrl } from "@/lib/supabase/env";
 
-// Refreshes the Supabase session on every request, so Server Components (where
-// cookies are read-only) always see a valid token.
+/**
+ * Refreshes the Supabase session on every request, so Server Components (where
+ * cookies are read-only) always see a valid token.
+ */
 export async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
 
@@ -26,8 +28,10 @@ export async function proxy(request: NextRequest) {
   return response;
 }
 
-// Static assets and the health check skip the proxy; the health check must still answer
-// when Supabase settings are missing, which is what it reports on.
+/**
+ * Static assets and the health check skip the proxy; the health check must still answer
+ * when Supabase settings are missing, which is what it reports on.
+ */
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico|api/health|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)"],
 };

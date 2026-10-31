@@ -3,6 +3,7 @@ import { listPapers } from "@/lib/admin/papers";
 import { requireAdmin } from "@/lib/auth";
 import { signOut } from "../login/actions";
 
+/** Server component listing every paper with its status. Admins only. */
 export async function PaperList() {
   const user = await requireAdmin();
   const papers = await listPapers();

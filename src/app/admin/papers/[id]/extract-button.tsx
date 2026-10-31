@@ -6,6 +6,11 @@ import { postStep } from "./post-step";
 
 const call = (paperId: string, body: object) => postStep(`/api/admin/papers/${paperId}/extract`, body);
 
+/**
+ * Runs extraction step by step (outline, each section, checks), showing progress and errors.
+ * @param props.paperId - The paper to extract.
+ * @param props.hasQuestions - Whether questions exist already; the button then reads "Extract again".
+ */
 export function ExtractButton({ paperId, hasQuestions }: { paperId: string; hasQuestions: boolean }) {
   const router = useRouter();
   const [status, setStatus] = useState<string>();

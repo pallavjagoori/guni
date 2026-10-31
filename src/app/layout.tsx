@@ -12,11 +12,13 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
+/** Page title and description shown by browsers and search engines. */
 export const metadata: Metadata = {
   title: "Guni",
   description: "Adaptive PYQ practice for CBSE, JEE and NEET",
 };
 
+/** Root HTML layout shared by every page. */
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html

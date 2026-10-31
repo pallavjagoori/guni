@@ -6,7 +6,7 @@ import { flagPaper, logRun } from "@/lib/import/save";
 import { loadAnswers, loadTargets, saveKeys } from "@/lib/import/save-keys";
 import { createAdminClient } from "@/lib/supabase/server";
 
-// Reads answer keys from the marking scheme one section per request, then checks them all.
+/** Reads answer keys from the marking scheme one section per request, then checks them all. */
 export const maxDuration = 300;
 
 const step = z.discriminatedUnion("step", [
@@ -14,6 +14,10 @@ const step = z.discriminatedUnion("step", [
   z.object({ step: z.literal("check") }),
 ]);
 
+/**
+ * Runs one answer-key step for a paper: `section` (with a position) or `check`.
+ * Needs an attached marking scheme and the paper's set code. Admins only.
+ */
 export async function POST(request: Request, ctx: RouteContext<"/api/admin/papers/[id]/keys">) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });

@@ -6,6 +6,7 @@ const tracks = [
   { code: "neet", name: "NEET", note: "Coming after the CBSE release" },
 ];
 
+/** Public home page. */
 export default function Home() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-2xl flex-col gap-8 px-4 py-16">

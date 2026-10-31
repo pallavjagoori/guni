@@ -1,7 +1,7 @@
 import { getPaper } from "@/lib/admin/papers";
 import { getCurrentUser } from "@/lib/auth";
 
-// Downloads everything extracted for a paper as JSON, for offline review.
+/** Downloads everything extracted for a paper as JSON, for offline review. */
 export async function GET(_request: Request, ctx: RouteContext<"/api/admin/papers/[id]/export">) {
   const user = await getCurrentUser();
   if (!user) return Response.json({ error: "Sign in first." }, { status: 401 });

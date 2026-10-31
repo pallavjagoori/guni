@@ -1,5 +1,7 @@
-// Models the pipeline uses, and their list prices in USD per million tokens.
-// Cache writes cost 1.25x input and cache reads 0.1x input (5-minute cache).
+/**
+ * Models the pipeline uses, and their list prices in USD per million tokens.
+ * Cache writes cost 1.25x input and cache reads 0.1x input (5-minute cache).
+ */
 export const MODELS = {
   extract: "claude-sonnet-5-5", // reads paper PDFs, diagrams and formulas
   tag: "claude-haiku-5-5", // picks chapter/topic/concept ids from a closed list
@@ -10,6 +12,7 @@ const PRICES: Record<string, { input: number; output: number }> = {
   "claude-haiku-5-5": { input: 0.1, output: 0.5 },
 };
 
+/** Token counts reported by one API call. */
 export interface Usage {
   input_tokens: number;
   output_tokens: number;
@@ -17,6 +20,11 @@ export interface Usage {
   cache_read_input_tokens?: number | null;
 }
 
+/**
+ * The dollar cost of one API call, counting cache writes and reads at their own rates.
+ * @param model - The model that served the call.
+ * @param usage - The token counts it reported.
+ */
 export function costUsd(model: string, usage: Usage): number {
   const price = PRICES[model];
   if (!price) throw new Error(`No price for model ${model}`);

@@ -6,8 +6,10 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { MODELS, costUsd, type Usage } from "@/lib/ai/models";
 
+/** Recorded with every extraction run, so results can be traced to the prompt that made them. */
 export const PROMPT_VERSION = "extract-v3";
 
+/** Shape of a paper's outline. */
 export const outlineSchema = z.object({
   totalQuestions: z.number().int(),
   maxMarks: z.number(),
@@ -23,11 +25,15 @@ export const outlineSchema = z.object({
     }),
   ),
 });
+/** A paper's structure as its instructions state it. */
 export type Outline = z.infer<typeof outlineSchema>;
+/** One section of the outline. */
 export type OutlineSection = Outline["sections"][number];
 
+/** How a question is answered and scored. */
 export const questionKinds = ["mcq_single", "mcq_multi", "assertion_reason", "numerical", "descriptive"] as const;
 
+/** Shape of one transcribed question. */
 export const extractedQuestionSchema = z.object({
   number: z.number().int(), // as printed: 23
   alternative: z.number().int(), // 1 for the first or only version, 2 for the "OR" alternative, ...
@@ -44,11 +50,13 @@ export const extractedQuestionSchema = z.object({
     })
     .nullable(),
 });
+/** One transcribed question (or one alternative or case-study part of it). */
 export type ExtractedQuestion = z.infer<typeof extractedQuestionSchema>;
 
-// "(iii)", "Part III" and "III" all name the same case-study part.
+/** "(iii)", "Part III" and "III" all name the same case-study part. */
 export const normalisePart = (part: string) => part.replace(/^\s*part\b/i, "").replace(/[()\s.]/g, "").toUpperCase();
 
+/** Shape of one section's transcription. */
 export const sectionResultSchema = z.object({ questions: z.array(extractedQuestionSchema) });
 
 const SYSTEM = `You transcribe exam question papers into structured data for a practice app.
@@ -84,6 +92,7 @@ function pdfBlock(pdfBase64: string): Anthropic.DocumentBlockParam {
   };
 }
 
+/** One AI call's parsed answer with the model, token usage and cost. */
 export interface RunResult<T> {
   data: T;
   model: string;
@@ -91,7 +100,7 @@ export interface RunResult<T> {
   costUsd: number;
 }
 
-// One structured-output call over a PDF. Shared by extraction and answer-key reading.
+/** One structured-output call over a PDF. Shared by extraction and answer-key reading. */
 export async function runPdf<T>(
   client: Anthropic,
   system: string,
@@ -114,6 +123,7 @@ export async function runPdf<T>(
   return { data: response.parsed_output as T, model, usage: response.usage, costUsd: costUsd(model, response.usage) };
 }
 
+/** Reads the paper's general instructions: question count, marks, duration and sections. */
 export function extractOutline(client: Anthropic, pdfBase64: string): Promise<RunResult<Outline>> {
   return runPdf(
     client,
@@ -124,6 +134,7 @@ export function extractOutline(client: Anthropic, pdfBase64: string): Promise<Ru
   );
 }
 
+/** Transcribes one section's questions, every alternative and case-study part included. */
 export function extractSection(
   client: Anthropic,
   pdfBase64: string,
@@ -141,7 +152,7 @@ export function extractSection(
 // CBSE prints options as (A)-(D); JEE and NEET as (1)-(4).
 const OPTION_LABELS = ["A,B,C,D", "1,2,3,4"];
 
-// Deterministic checks against the paper's own outline. Each problem is one sentence for the admin.
+/** Deterministic checks against the paper's own outline. Each problem is one sentence for the admin. */
 export function checkExtraction(outline: Outline, questions: ExtractedQuestion[]): string[] {
   const issues: string[] = [];
   const byNumber = new Map<number, ExtractedQuestion[]>();

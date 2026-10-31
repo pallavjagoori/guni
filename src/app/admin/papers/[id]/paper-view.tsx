@@ -7,6 +7,10 @@ import { parseLabel } from "@/lib/import/save";
 import { ExtractButton } from "./extract-button";
 import { KeysPanel } from "./keys-panel";
 
+/**
+ * Server component showing a paper's sections and questions, with formulas typeset, answers and marking steps.
+ * Responds 404 when the paper doesn't exist.
+ */
 export async function PaperView({ params }: { params: Promise<{ id: string }> }) {
   await requireAdmin();
   const { id } = await params;

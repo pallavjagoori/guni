@@ -6,7 +6,7 @@ import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { z } from "zod";
 import { MODELS, costUsd, type Usage } from "@/lib/ai/models";
 
-export const PROMPT_VERSION = "extract-v1";
+export const PROMPT_VERSION = "extract-v2";
 
 export const outlineSchema = z.object({
   totalQuestions: z.number().int(),
@@ -51,7 +51,10 @@ const SYSTEM = `You transcribe exam question papers into structured data for a p
 Rules:
 - Copy text exactly as printed. Never reword, solve, correct or add anything.
 - When the paper is bilingual, use only the English version.
-- Write every formula, symbol, subscript and fraction in LaTeX between $...$ (e.g. $\\frac{\\mu_0 I}{2\\pi a}$, $10^{-34}$).
+- Write every formula, symbol, unit with a power, subscript and fraction in LaTeX between $...$
+  (e.g. $\\frac{\\mu_0 I}{2\\pi a}$, $6.63 \\times 10^{-34}$ J s, $\\varepsilon_0$, $\\Omega$, $5\\sqrt{2}$ V).
+  Never use Unicode math characters (μ, ε, Ω, √, ×, ⁻) or plain-text approximations like "10-34" or "mu0".
+  Put a displayed equation on its own lines as $$...$$.
 - Keep sub-parts such as (a), (b), (i), (ii) inside the question's stem as Markdown lists.
 - A question printed with "OR" between versions is several alternatives with the same number: alternative 1, 2, ...
   An "OR" inside one sub-part of a case study stays in the stem as text instead.

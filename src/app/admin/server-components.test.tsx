@@ -66,9 +66,9 @@ describe("PaperView", () => {
       {
         id: "s1", position: 1, title: "Section A", marksCorrect: 1,
         questions: [
-          { id: "q1", position: 1, label: "1", kind: "mcq_single", stem: "Field?", marks: null, figure: { page: 5, caption: "c" }, options: [{ label: "A", body: "10 N/C" }], answer: "A", steps: [] as object[] },
+          { id: "q1", position: 1, label: "1", kind: "mcq_single", stem: "Field $\\frac{q}{r^2}$?", marks: null, figure: { page: 5, caption: "c" }, options: [{ label: "A", body: "10 N/C" }], answer: "A", steps: [] as object[] },
           { id: "q2", position: 2, label: "2", kind: "descriptive", stem: "Explain", marks: 2, figure: null, options: [], answer: null,
-            steps: [{ n: 1, text: "Lenz's law", marks: 1 }, { n: 2, text: "Direction", marks: 1 }] },
+            steps: [{ n: 1, text: "Lenz's law", marks: 1 }, { n: 2, text: "$\\varepsilon_0$ direction", marks: 1 }] },
           { id: "q3", position: 3, label: "3", kind: "descriptive", stem: "Unanswered", marks: 2, figure: null, options: [], answer: null, steps: [] },
         ],
       },
@@ -91,6 +91,10 @@ describe("PaperView", () => {
     expect(html).toContain('href="/api/admin/papers/p1/export"');
     expect(html).toContain("Q1 · mcq_single · 1 marks · diagram on page 5");
     expect(html).toContain("(A) 10 N/C");
+    // Formulas in stems and steps are drawn by KaTeX, not shown as raw LaTeX.
+    expect(html).toContain("<mfrac>");
+    expect(html).toContain("ε");
+    expect(html).not.toContain("$\\frac");
     expect(html).toContain("Q2 · descriptive · 2 marks");
     expect(html).toContain("Extract again");
     expect(html).not.toContain("Needs a look");

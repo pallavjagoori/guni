@@ -24,3 +24,14 @@ export function supabaseServiceKey(): string {
   if (!key) throw new Error("Neither SUPABASE_SERVICE_ROLE_KEY nor SUPABASE_SECRET_KEY is set");
   return key;
 }
+
+// Browser code: Next.js inlines only NEXT_PUBLIC_* values, so no server fallbacks here.
+export function browserSupabaseConfig(): { url: string; key: string } {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key =
+    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !key) {
+    throw new Error("NEXT_PUBLIC_SUPABASE_URL and a NEXT_PUBLIC_ publishable or anon key are required");
+  }
+  return { url, key };
+}

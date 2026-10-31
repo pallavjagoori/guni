@@ -1,8 +1,12 @@
 import { connection } from "next/server";
 import { createAdminClient } from "@/lib/supabase/server";
-import { supabasePublicKey, supabaseServiceKey, supabaseUrl } from "@/lib/supabase/env";
+import { browserSupabaseConfig, supabasePublicKey, supabaseServiceKey, supabaseUrl } from "@/lib/supabase/env";
 
-function isSet(read: () => string): boolean {
+// Postgres "undefined table" and PostgREST "table not in schema cache": the database
+// answered, but the migrations have not created the tables yet.
+const MISSING_TABLE = new Set(["42P01", "PGRST205"]);
+
+function isSet(read: () => unknown): boolean {
   try {
     read();
     return true;
@@ -18,6 +22,7 @@ export async function GET() {
   const config = {
     supabaseUrl: isSet(supabaseUrl),
     supabasePublicKey: isSet(supabasePublicKey),
+    browserConfig: isSet(browserSupabaseConfig),
     supabaseServiceKey: isSet(supabaseServiceKey),
     anthropicKey: Boolean(process.env.ANTHROPIC_API_KEY),
   };
@@ -28,7 +33,7 @@ export async function GET() {
     const { count, error } = await createAdminClient()
       .from("chapters")
       .select("id", { count: "exact", head: true });
-    database = error ? "unreachable" : "ok";
+    database = error && !MISSING_TABLE.has(error.code ?? "") ? "unreachable" : "ok";
     migrated = !error && (count ?? 0) > 0;
   }
 

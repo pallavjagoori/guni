@@ -30,7 +30,7 @@ describe("GET /api/health", () => {
     expect(res.status).toBe(503);
     expect(await res.json()).toEqual({
       ok: false,
-      config: { supabaseUrl: false, supabasePublicKey: false, supabaseServiceKey: false, anthropicKey: false },
+      config: { supabaseUrl: false, supabasePublicKey: false, browserConfig: false, supabaseServiceKey: false, anthropicKey: false },
       database: "not_configured",
       migrated: false,
     });
@@ -60,9 +60,29 @@ describe("GET /api/health", () => {
     expect(await (await GET()).json()).toMatchObject({ migrated: false });
   });
 
+  it("reports a reachable database without tables as not migrated", async () => {
+    configure();
+    for (const code of ["42P01", "PGRST205"]) {
+      select.mockResolvedValue({ count: null, error: { code, message: "relation does not exist" } });
+      const { GET } = await import("./route");
+      expect(await (await GET()).json()).toMatchObject({ database: "ok", migrated: false });
+    }
+  });
+
+  it("flags settings the browser cannot see", async () => {
+    configure();
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", undefined);
+    vi.stubEnv("SUPABASE_URL", "https://x.supabase.co");
+    select.mockResolvedValue({ count: 141, error: null });
+    const { GET } = await import("./route");
+    const res = await GET();
+    expect(res.status).toBe(503);
+    expect(await res.json()).toMatchObject({ ok: false, config: { supabaseUrl: true, browserConfig: false } });
+  });
+
   it("reports an unreachable database", async () => {
     configure();
-    select.mockResolvedValue({ count: null, error: { message: "relation does not exist" } });
+    select.mockResolvedValue({ count: null, error: { message: "fetch failed" } });
     const { GET } = await import("./route");
     const res = await GET();
     expect(res.status).toBe(503);

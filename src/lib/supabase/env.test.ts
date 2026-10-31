@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { supabasePublicKey, supabaseServiceKey, supabaseUrl } from "./env";
+import { browserSupabaseConfig, supabasePublicKey, supabaseServiceKey, supabaseUrl } from "./env";
 
 const NAMES = [
   "NEXT_PUBLIC_SUPABASE_URL",
@@ -70,5 +70,28 @@ describe("supabaseServiceKey", () => {
   });
   it("fails loudly when neither is set", () => {
     expect(() => supabaseServiceKey()).toThrow(/SUPABASE_SERVICE_ROLE_KEY nor SUPABASE_SECRET_KEY/);
+  });
+});
+
+describe("browserSupabaseConfig", () => {
+  it("uses only NEXT_PUBLIC_ values", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://pub.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
+    expect(browserSupabaseConfig()).toEqual({ url: "https://pub.supabase.co", key: "anon" });
+  });
+  it("prefers the publishable key", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://pub.supabase.co");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "pub");
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY", "anon");
+    expect(browserSupabaseConfig().key).toBe("pub");
+  });
+  it("ignores server-only names the browser cannot see", () => {
+    vi.stubEnv("SUPABASE_URL", "https://srv.supabase.co");
+    vi.stubEnv("SUPABASE_ANON_KEY", "anon");
+    expect(() => browserSupabaseConfig()).toThrow(/NEXT_PUBLIC_SUPABASE_URL/);
+  });
+  it("requires a public key as well as the URL", () => {
+    vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://pub.supabase.co");
+    expect(() => browserSupabaseConfig()).toThrow(/publishable or anon key/);
   });
 });
